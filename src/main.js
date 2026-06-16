@@ -356,7 +356,8 @@ class Game {
   }
 
   _setupMultiplayer() {
-    const SERVER_URL = `ws://${window.location.hostname}:3001/ws`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const SERVER_URL = `${protocol}//${window.location.host}/ws`;
     let ws = null;
     this._multiWs = null;
     this._multiHost = false;
