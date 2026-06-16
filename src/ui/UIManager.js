@@ -333,7 +333,8 @@ export class UIManager {
   setMultiLobbyPlayers(players) {
     const html = players.map(p => `
       <div class="player-entry">
-        <span class="player-name">${p.name}</span>
+        <span class="player-name team-${(p.team || 'ct').toLowerCase()}">${p.name}</span>
+        <span class="player-team">${p.team || 'CT'}</span>
         <span class="player-ready">${p.ready ? 'Ready' : 'Not Ready'}</span>
       </div>
     `).join('');
@@ -363,9 +364,21 @@ export class UIManager {
 
     const statsEl = document.getElementById('match-stats');
     if (statsEl && stats.players) {
-      statsEl.innerHTML = stats.players.slice(0, 10).map(p => `
+      // Show team scores for multiplayer
+      let teamHtml = '';
+      if (mode !== 'solo' && stats.players.some(p => p.team)) {
+        const ctScore = stats.players.filter(p => p.team === 'CT').reduce((s, p) => s + p.score, 0);
+        const tScore = stats.players.filter(p => p.team === 'T').reduce((s, p) => s + p.score, 0);
+        teamHtml = `
+          <div class="team-scores">
+            <span class="team-ct">CT: ${ctScore}</span>
+            <span class="team-t">T: ${tScore}</span>
+          </div>
+        `;
+      }
+      statsEl.innerHTML = teamHtml + stats.players.slice(0, 10).map(p => `
         <div class="stat-row">
-          <span>${p.name} ${p.isBot ? '(Bot)' : ''}</span>
+          <span>${p.team ? `<span class="team-${p.team.toLowerCase()}">[${p.team}]</span> ` : ''}${p.name} ${p.isBot ? '(Bot)' : ''}</span>
           <span>${p.kills} / ${p.deaths}</span>
           <span>${p.score}</span>
         </div>

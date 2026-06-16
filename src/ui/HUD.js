@@ -158,6 +158,15 @@ export class HUD {
     }, 400);
   }
 
+  setTeam(team) {
+    this._team = team;
+    const el = document.getElementById('team-display');
+    if (el) {
+      el.textContent = team;
+      el.className = 'hud-team team-' + (team || 'ct').toLowerCase();
+    }
+  }
+
   showHitMarker(damage) {
     if (!this.elements.hitMarker) return;
 
@@ -177,12 +186,14 @@ export class HUD {
   addKillFeedEntry(data) {
     if (!this.elements.killFeed) return;
 
+    const killerTeam = data.killerTeam || '';
+    const victimTeam = data.victimTeam || '';
     const entry = document.createElement('div');
     entry.className = 'kill-entry';
     entry.innerHTML = `
-      <span class="killer">${data.killerName || 'Player'}</span>
+      <span class="killer${killerTeam ? ' team-' + killerTeam.toLowerCase() : ''}">${data.killerName || 'Player'}</span>
       <span class="weapon">[${data.weapon || '?'}]</span>
-      <span class="victim">${data.victimName || 'Enemy'}</span>
+      <span class="victim${victimTeam ? ' team-' + victimTeam.toLowerCase() : ''}">${data.victimName || 'Enemy'}</span>
     `;
 
     this.elements.killFeed.appendChild(entry);

@@ -41,6 +41,10 @@ export class GameRoom {
       }
     });
 
+    this.matchManager.on('score_update', (data) => {
+      this._broadcast({ type: 'score_update', data });
+    });
+
     this.matchManager.on('end', (data) => {
       this.state = 'ended';
       this._broadcast({ type: 'match_end', data });
@@ -71,11 +75,15 @@ export class GameRoom {
   }
 
   addPlayer(id, name, ws) {
-    const spawn = this._getSpawn();
+    const teamSizes = { CT: 0, T: 0 };
+    for (const [, p] of this.players) teamSizes[p.team]++;
+    const team = teamSizes.CT <= teamSizes.T ? 'CT' : 'T';
+    const spawn = this._getSpawn(team);
     const player = {
       id,
       name,
       ws,
+      team,
       ready: false,
       position: { x: spawn.x, y: 0.9, z: spawn.z },
       velocity: { x: 0, y: 0, z: 0 },
@@ -91,8 +99,8 @@ export class GameRoom {
     if (!this.hostId) {
       this.hostId = id;
     }
-    this.matchManager.registerPlayer(id, name);
-    this._broadcast({ type: 'player_joined', data: { id, name, players: this.getPlayerList() } });
+    this.matchManager.registerPlayer(id, name, team);
+    this._broadcast({ type: 'player_joined', data: { id, name, team, players: this.getPlayerList() } });
   }
 
   removePlayer(id) {
@@ -132,6 +140,9 @@ export class GameRoom {
     const player = this.players.get(playerId);
     if (!player || !player.alive) return;
     if (inputData) {
+      if (inputData.euler) {
+        player.euler = { ...player.euler, ...inputData.euler };
+      }
       player.inputs = { ...player.inputs, ...inputData };
     }
   }
@@ -213,7 +224,7 @@ export class GameRoom {
     let closestDist = Infinity;
 
     for (const [, target] of this.players) {
-      if (target.id === player.id || !target.alive) continue;
+      if (target.id === player.id || !target.alive || target.team === player.team) continue;
       const hit = this._raycastPlayer(origin, dir, target, 300);
       if (hit && hit.distance < closestDist) {
         closestDist = hit.distance;
@@ -316,7 +327,8 @@ export class GameRoom {
         alive: player.alive,
         health: player.health,
         weapon: player.weapon,
-        inputs: player.inputs
+        inputs: player.inputs,
+        team: player.team
       };
     }
     const msg = { type: 'state', data: { entities, worldTime: Date.now() } };
@@ -336,17 +348,22 @@ export class GameRoom {
     }
   }
 
-  _getSpawn() {
+  _getSpawn(team) {
     const spawns = this.mapData.spawns.filter(s => s.type === 'player');
-    const spawn = spawns[this.spawnIndex % spawns.length];
+    let spawn = spawns[this.spawnIndex % spawns.length];
     this.spawnIndex++;
+    if (team === 'CT') {
+      spawn = { ...spawn, x: spawn.x - 8, z: spawn.z - 8 };
+    } else if (team === 'T') {
+      spawn = { ...spawn, x: spawn.x + 8, z: spawn.z + 8 };
+    }
     return spawn;
   }
 
   _respawnPlayer(id) {
     const player = this.players.get(id);
     if (!player) return;
-    const spawn = this._getSpawn();
+    const spawn = this._getSpawn(player.team);
     player.position = { x: spawn.x, y: 0.9, z: spawn.z };
     player.velocity = { x: 0, y: 0, z: 0 };
     player.health = 100;
@@ -356,7 +373,7 @@ export class GameRoom {
 
   getPlayerList() {
     return Array.from(this.players.values()).map(p => ({
-      id: p.id, name: p.name, ready: p.ready, isHost: p.id === this.hostId
+      id: p.id, name: p.name, team: p.team, ready: p.ready, isHost: p.id === this.hostId
     }));
   }
 }

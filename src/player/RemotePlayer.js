@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+const TEAM_COLORS = {
+  CT: { body: 0x2266cc, leg: 0x335577 },
+  T: { body: 0xcc4422, leg: 0x774433 }
+};
+
 export class RemotePlayer {
   constructor(scene, id, name) {
     this.id = id;
@@ -7,9 +12,10 @@ export class RemotePlayer {
     this.scene = scene;
     this.group = new THREE.Group();
     this.alive = true;
+    this.team = 'CT';
 
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4488cc, roughness: 0.6 });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8), bodyMat);
+    this.bodyMat = new THREE.MeshStandardMaterial({ color: TEAM_COLORS.CT.body, roughness: 0.6 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8), this.bodyMat);
     body.position.y = 0.1;
     body.castShadow = true;
     this.group.add(body);
@@ -26,13 +32,13 @@ export class RemotePlayer {
     weapon.position.set(-0.15, 0.0, -0.4);
     this.group.add(weapon);
 
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x445544, roughness: 0.7 });
+    this.legMat = new THREE.MeshStandardMaterial({ color: TEAM_COLORS.CT.leg, roughness: 0.7 });
     const legGeo = new THREE.BoxGeometry(0.12, 0.45, 0.12);
-    this.leftLeg = new THREE.Mesh(legGeo, legMat);
+    this.leftLeg = new THREE.Mesh(legGeo, this.legMat);
     this.leftLeg.position.set(-0.12, -0.675, 0);
     this.leftLeg.castShadow = true;
     this.group.add(this.leftLeg);
-    this.rightLeg = new THREE.Mesh(legGeo, legMat);
+    this.rightLeg = new THREE.Mesh(legGeo, this.legMat);
     this.rightLeg.position.set(0.12, -0.675, 0);
     this.rightLeg.castShadow = true;
     this.group.add(this.rightLeg);
@@ -50,7 +56,16 @@ export class RemotePlayer {
     this.walkPhase = 0;
   }
 
+  setTeam(team) {
+    this.team = team;
+    const c = TEAM_COLORS[team] || TEAM_COLORS.CT;
+    this.bodyMat.color.setHex(c.body);
+    this.legMat.color.setHex(c.leg);
+  }
+
   update(state, deltaTime) {
+    if (state.team && state.team !== this.team) this.setTeam(state.team);
+
     if (!this.alive && this.group.visible) {
       this.group.visible = false;
     }

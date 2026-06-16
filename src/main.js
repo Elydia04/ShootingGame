@@ -208,6 +208,20 @@ class Game {
     const direction = new THREE.Vector3(0, 0, -1);
     direction.applyQuaternion(camera.quaternion);
 
+    if (this.gameMode === 'multi') {
+      this.player.firstPersonWeapon.playShoot();
+      this.systems.animationManager.playWeapon('shoot');
+      const shotSound = weapon.type === 'Rifle' ? 'gunshot_rifle' :
+                        weapon.type === 'Pistol' ? 'gunshot_pistol' :
+                        weapon.type === 'SMG' ? 'gunshot_smg' :
+                        weapon.type === 'Shotgun' ? 'gunshot_shotgun' : 'gunshot_rifle';
+      this.systems.audioManager.play(shotSound, 'WEAPON');
+      this.core.eventBus.emit('weapon:fired', {
+        weapon: weapon.type, ammo: weapon.currentAmmo, reserve: weapon.reserveAmmo
+      });
+      return;
+    }
+
     const enemyHitboxes = this.bots
       .filter(b => b.alive)
       .map(b => b.hitbox);
@@ -363,6 +377,7 @@ class Game {
     this._multiWs = null;
     this._multiHost = false;
     this._multiCode = null;
+    this._multiLocalTeam = null;
 
     this.core.eventBus.on('lobby:created', (data) => {
       const ws = new WebSocket(SERVER_URL);
@@ -417,6 +432,8 @@ class Game {
         document.getElementById('lobby-code').textContent = msg.data.code;
         document.getElementById('join-lobby-code').textContent = msg.data.code;
         document.getElementById('btn-start-game')?.classList.toggle('hidden', !this._multiHost);
+        const me = msg.data.players.find(p => p.id === this._multiLocalId);
+        if (me) this._multiLocalTeam = me.team;
         if (msg.type === 'room_joined') {
           this.core.eventBus.emit('lobby:joined');
         }
@@ -426,6 +443,11 @@ class Game {
       case 'player_left':
       case 'player_ready':
         this.ui.uiManager.setMultiLobbyPlayers(msg.data.players);
+        const updatedMe = msg.data.players?.find(p => p.id === this._multiLocalId);
+        if (updatedMe) {
+          this._multiLocalTeam = updatedMe.team;
+          this.ui.hud?.setTeam?.(updatedMe.team);
+        }
         break;
 
       case 'countdown':
@@ -434,6 +456,10 @@ class Game {
 
       case 'game_started':
         this.core.gameStateManager.transitionTo(States.PLAYING, { mode: 'multi', map: msg.data.mapId, config: msg.data.config });
+        if (this._multiLocalTeam) {
+          this.ui.hud?.setTeam?.(this._multiLocalTeam);
+          this.player.thirdPersonCharacter?.setTeam?.(this._multiLocalTeam);
+        }
         break;
 
       case 'state':
@@ -454,13 +480,16 @@ class Game {
 
       case 'hit':
         this._showImpactEffect(msg.data.point, { x: 0, y: 1, z: 0 }, true);
-        if (msg.data.victimId === 'local') {
+        if (msg.data.victimId === this._multiLocalId) {
           this.ui.hud.showDamageVignette?.();
+        }
+        if (msg.data.shooterId === this._multiLocalId) {
+          this.ui.hud.showHitMarker?.(msg.data.damage);
         }
         break;
 
       case 'kill':
-        this.ui.hud?.addKillFeedEntry?.(`${msg.data.killerName} killed ${msg.data.victimName}`);
+        this.ui.hud?.addKillFeedEntry?.(msg.data);
         break;
 
       case 'respawn':
@@ -469,6 +498,12 @@ class Game {
 
       case 'match_end':
         this._endMultiMatch(msg.data);
+        break;
+
+      case 'score_update':
+        if (this.ui.hud) {
+          this.ui.hud.updateScore({ team1: msg.data.teamScores.CT, team2: msg.data.teamScores.T });
+        }
         break;
 
       case 'code_updated':
@@ -530,6 +565,7 @@ class Game {
         this.remotePlayers.push(rp);
       }
       rp.alive = state.alive;
+      rp.team = state.team;
       rp.update(state, 0.016);
     }
 
@@ -1003,8 +1039,9 @@ class Game {
   _updateNetwork(deltaTime) {
     if (this.gameMode === 'multi' && this._multiWs && this._multiWs.readyState === WebSocket.OPEN) {
       const inputs = this.player.controller?.inputs;
+      const euler = this.player.controller?.euler;
       if (inputs) {
-        this._multiWs.send(JSON.stringify({ type: 'input', data: { ...inputs }, time: performance.now() }));
+        this._multiWs.send(JSON.stringify({ type: 'input', data: { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 } }, time: performance.now() }));
       }
       this._multiWs.send(JSON.stringify({ type: 'ping', data: { clientTime: performance.now() } }));
     }

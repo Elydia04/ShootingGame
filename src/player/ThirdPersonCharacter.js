@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+const TEAM_COLORS = {
+  CT: { body: 0x3366aa, sleeve: 0x3366aa, pants: 0x445566 },
+  T: { body: 0xcc4422, sleeve: 0xcc4422, pants: 0x774433 }
+};
+
 export class ThirdPersonCharacter {
   constructor(scene) {
     this.scene = scene;
@@ -8,56 +13,51 @@ export class ThirdPersonCharacter {
 
     this.visible = false;
     this.group.visible = false;
+    this._team = 'CT';
 
     this._buildModel();
   }
 
+  setTeam(team) {
+    this._team = team;
+    const c = TEAM_COLORS[team] || TEAM_COLORS.CT;
+    if (this.bodyMat) this.bodyMat.color.setHex(c.body);
+    if (this.pantsMat) this.pantsMat.color.setHex(c.pants);
+    if (this.sleeveMat) this.sleeveMat.color.setHex(c.sleeve);
+  }
+
   _buildModel() {
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: 0x3366aa,
-      roughness: 0.6
-    });
+    const c = TEAM_COLORS[this._team] || TEAM_COLORS.CT;
+    this.bodyMat = new THREE.MeshStandardMaterial({ color: c.body, roughness: 0.6 });
 
-    const headMat = new THREE.MeshStandardMaterial({
-      color: 0xccaa88,
-      roughness: 0.5
-    });
+    const headMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.5 });
 
-    const pantsMat = new THREE.MeshStandardMaterial({
-      color: 0x445566,
-      roughness: 0.7
-    });
+    this.pantsMat = new THREE.MeshStandardMaterial({ color: c.pants, roughness: 0.7 });
 
-    const bootMat = new THREE.MeshStandardMaterial({
-      color: 0x333333,
-      roughness: 0.8
-    });
+    const bootMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
 
-    const armMat = new THREE.MeshStandardMaterial({
-      color: 0xccaa88,
-      roughness: 0.5
-    });
+    const armMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.5 });
 
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), headMat);
     head.position.y = 1.65;
     head.castShadow = true;
     this.group.add(head);
 
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.3), bodyMat);
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.3), this.bodyMat);
     torso.position.y = 1.15;
     torso.castShadow = true;
     this.group.add(torso);
 
-    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.25), pantsMat);
+    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.2, 0.25), this.pantsMat);
     pelvis.position.y = 0.8;
     this.group.add(pelvis);
 
-    const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), pantsMat);
+    const lLeg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), this.pantsMat);
     lLeg.position.set(-0.1, 0.5, 0);
     lLeg.castShadow = true;
     this.group.add(lLeg);
 
-    const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), pantsMat);
+    const rLeg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.12), this.pantsMat);
     rLeg.position.set(0.1, 0.5, 0);
     rLeg.castShadow = true;
     this.group.add(rLeg);
@@ -80,10 +80,7 @@ export class ThirdPersonCharacter {
     rArm.castShadow = true;
     this.group.add(rArm);
 
-    this.sleeveMat = new THREE.MeshStandardMaterial({
-      color: 0x3366aa,
-      roughness: 0.6
-    });
+    this.sleeveMat = new THREE.MeshStandardMaterial({ color: c.sleeve, roughness: 0.6 });
 
     const lSleeve = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.15, 0.09), this.sleeveMat);
     lSleeve.position.set(-0.34, 1.38, 0);

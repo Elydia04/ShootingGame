@@ -349,6 +349,12 @@ body {
   font-size: 0.9rem;
 }
 
+.player-team {
+  color: #888;
+  font-size: 0.85rem;
+  margin: 0 8px;
+}
+
 .lobby-actions {
   display: flex;
   gap: 1rem;
@@ -588,6 +594,16 @@ body {
   text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
 }
 
+.hud-team {
+  font-size: 1rem;
+  font-weight: bold;
+  letter-spacing: 0.15rem;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+  margin-top: 2px;
+}
+.hud-team.team-ct { color: #4a9eff; }
+.hud-team.team-t { color: #e74c3c; }
+
 .hud-score {
   font-size: 1.8rem;
   font-weight: bold;
@@ -670,9 +686,28 @@ body {
 .kill-entry .killer {
   color: #4a9eff;
 }
+.kill-entry .killer.team-t {
+  color: #e74c3c;
+}
+.kill-entry .killer.team-ct {
+  color: #4a9eff;
+}
 
 .kill-entry .victim {
   color: #e74c3c;
+}
+.kill-entry .victim.team-t {
+  color: #e74c3c;
+}
+.kill-entry .victim.team-ct {
+  color: #4a9eff;
+}
+
+.player-name.team-t {
+  color: #e74c3c;
+}
+.player-name.team-ct {
+  color: #4a9eff;
 }
 
 /* Hit Marker */
@@ -849,6 +884,19 @@ body {
   width: 300px;
   margin: 0 auto;
 }
+
+.team-scores {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 8px 0;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border-bottom: 1px solid #444;
+  margin-bottom: 8px;
+}
+.team-scores .team-ct { color: #4a9eff; }
+.team-scores .team-t { color: #e74c3c; }
 
 .match-end-actions {
   display: flex;
