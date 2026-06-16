@@ -15,8 +15,10 @@ export class FirstPersonWeapon {
     this.bobTarget = new THREE.Vector3();
     this.restPos = new THREE.Vector3(0.25, -0.2, -0.4);
     this.restRot = new THREE.Euler(-0.03, 0.06, -0.05);
+    this.currentWeaponType = null;
 
     this.shootKick = 0;
+    this.knifeStab = 0;
     this.reloadProgress = 0;
     this.isReloading = false;
 
@@ -123,8 +125,22 @@ export class FirstPersonWeapon {
   }
 
   _resetPose() {
-    this.weaponGroup.position.copy(this.restPos);
-    this.weaponGroup.rotation.set(this.restRot.x, this.restRot.y, this.restRot.z);
+    const pos = this._getRestPos();
+    const rot = this._getRestRot();
+    this.weaponGroup.position.copy(pos);
+    this.weaponGroup.rotation.set(rot.x, rot.y, rot.z);
+  }
+
+  _getRestPos() {
+    if (this.currentWeaponType === 'Knife') return new THREE.Vector3(-0.25, -0.18, -0.3);
+    if (this.currentWeaponType === 'Pistol') return new THREE.Vector3(0.2, -0.15, -0.35);
+    return this.restPos.clone();
+  }
+
+  _getRestRot() {
+    if (this.currentWeaponType === 'Knife') return new THREE.Euler(-0.1, -0.4, 1.2);
+    if (this.currentWeaponType === 'Pistol') return new THREE.Euler(-0.02, 0.04, -0.03);
+    return this.restRot.clone();
   }
 
   getMuzzleWorldPosition() {
@@ -134,6 +150,10 @@ export class FirstPersonWeapon {
   }
 
   playShoot() {
+    if (this.currentWeaponType === 'Knife') {
+      this.knifeStab = 0.15;
+      return;
+    }
     this.shootKick = 0.04;
     this.recoil = Math.min(this.recoil + 0.025, this.maxRecoil);
     this.recoilSide += (Math.random() - 0.5) * 0.02;
@@ -155,15 +175,17 @@ export class FirstPersonWeapon {
       this.equipProgress += dt;
       const t = Math.min(this.equipProgress / this.equipDuration, 1);
       const ease = 1 - Math.pow(1 - t, 3);
+      const restPos = this._getRestPos();
+      const restRot = this._getRestRot();
       this.weaponGroup.position.set(
-        this.restPos.x * ease,
-        (this.restPos.y - 0.5) * (1 - ease) + this.restPos.y * ease,
-        (this.restPos.z + 0.3) * (1 - ease) + this.restPos.z * ease
+        restPos.x * ease,
+        (restPos.y - 0.5) * (1 - ease) + restPos.y * ease,
+        (restPos.z + 0.3) * (1 - ease) + restPos.z * ease
       );
       this.weaponGroup.rotation.set(
-        this.restRot.x * ease,
-        this.restRot.y * ease,
-        this.restRot.z * ease
+        restRot.x * ease,
+        restRot.y * ease,
+        restRot.z * ease
       );
       if (t >= 1) {
         this.isEquipping = false;
@@ -185,6 +207,11 @@ export class FirstPersonWeapon {
       if (this.shootKick < 0.001) this.shootKick = 0;
     }
 
+    if (this.knifeStab > 0) {
+      this.knifeStab -= dt * 3;
+      if (this.knifeStab < 0) this.knifeStab = 0;
+    }
+
     if (this.recoil > 0) {
       this.recoil *= (1 - this.recoverySpeed * dt);
       if (this.recoil < 0.001) this.recoil = 0;
@@ -194,7 +221,9 @@ export class FirstPersonWeapon {
 
     this._updateBob(dt, isMoving, isSprinting);
 
-    const targetPos = this.isADS ? this.adsPos.clone() : this.restPos.clone();
+    const restPos = this._getRestPos();
+    const restRot = this._getRestRot();
+    const targetPos = this.isADS ? this.adsPos.clone() : restPos.clone();
     if (!this.isADS) {
       targetPos.y += this.shootKick * 0.5;
       targetPos.x += this.recoilSide * 1.5;
@@ -216,12 +245,18 @@ export class FirstPersonWeapon {
       targetPos.y += this.bobTarget.y;
     }
 
+    if (this.currentWeaponType === 'Knife' && this.knifeStab > 0) {
+      targetPos.z += this.knifeStab * 2;
+      targetPos.x += this.knifeStab * 0.3;
+      targetPos.y += this.knifeStab * -0.1;
+    }
+
     this.weaponGroup.position.lerp(targetPos, 10 * dt);
 
     const targetRot = new THREE.Euler(
-      this.restRot.x + this.recoil * 2,
-      this.restRot.y + this.recoilSide,
-      this.restRot.z + this.recoil * 3
+      restRot.x + this.recoil * 2,
+      restRot.y + this.recoilSide,
+      restRot.z + this.recoil * 3
     );
     this.weaponGroup.rotation.x += (targetRot.x - this.weaponGroup.rotation.x) * 10 * dt;
     this.weaponGroup.rotation.y += (targetRot.y - this.weaponGroup.rotation.y) * 10 * dt;
@@ -268,6 +303,7 @@ export class FirstPersonWeapon {
 
   switchModel(weaponType) {
     this._clearWeapon();
+    this.currentWeaponType = weaponType;
     switch (weaponType) {
       case 'Pistol': this._buildPistol(); break;
       case 'SMG': this._buildSMG(); break;
@@ -431,42 +467,42 @@ export class FirstPersonWeapon {
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.5 });
     const gripMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
 
-    // Blade
+    // Blade (reversed - points toward player)
     const bladeGeo = new THREE.BoxGeometry(0.015, 0.002, 0.12);
     const blade = new THREE.Mesh(bladeGeo, metalMat);
-    blade.position.set(0, 0, 0.08);
+    blade.position.set(0, 0, -0.08);
     this.weaponGroup.add(blade);
 
-    // Blade tip (triangle approximation)
+    // Blade tip
     const tipGeo = new THREE.ConeGeometry(0.008, 0.04, 4);
     const tip = new THREE.Mesh(tipGeo, metalMat);
-    tip.rotation.x = Math.PI / 2;
-    tip.position.set(0, 0.001, 0.15);
+    tip.rotation.x = -Math.PI / 2;
+    tip.position.set(0, 0.001, -0.15);
     this.weaponGroup.add(tip);
 
     // Guard
     const guardGeo = new THREE.BoxGeometry(0.045, 0.005, 0.008);
     const guard = new THREE.Mesh(guardGeo, darkMat);
-    guard.position.set(0, 0, 0.02);
+    guard.position.set(0, 0, -0.02);
     this.weaponGroup.add(guard);
 
-    // Handle
+    // Handle (forward)
     const handleGeo = new THREE.BoxGeometry(0.025, 0.025, 0.055);
     const handle = new THREE.Mesh(handleGeo, gripMat);
-    handle.position.set(0, 0, -0.02);
+    handle.position.set(0, 0, 0.02);
     this.weaponGroup.add(handle);
 
     // Handle wrap rings
     const ringMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
     for (let i = 0; i < 3; i++) {
       const ring = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.028, 0.005), ringMat);
-      ring.position.set(0, 0, -0.025 - i * 0.018);
+      ring.position.set(0, 0, 0.025 + i * 0.018);
       this.weaponGroup.add(ring);
     }
 
-    // Pommel
+    // Pommel (forward)
     const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 6), darkMat);
-    pommel.position.set(0, 0, -0.05);
+    pommel.position.set(0, 0, 0.05);
     this.weaponGroup.add(pommel);
   }
 
