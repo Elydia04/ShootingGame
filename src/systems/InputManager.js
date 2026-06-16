@@ -23,6 +23,9 @@ export class InputManager {
       if (this.game.player.controller) {
         this.game.player.controller.isPointerLocked = locked;
       }
+      if (!locked && this.game.core.gameStateManager.is(States.PLAYING) && !this.game.pauseManager.isPaused() && !this.game.ui.settingsMenu?.isVisible()) {
+        this.game.pauseManager.pause();
+      }
     });
   }
 
@@ -41,9 +44,11 @@ export class InputManager {
       }
 
       if (e.code === 'Escape') {
-        if (this.game.pauseManager.isPaused()) {
+        if (this.game.ui.settingsMenu?.isVisible()) {
+          this.game.ui.settingsMenu.hide();
+        } else if (this.game.pauseManager.isPaused()) {
           this.game.pauseManager.resume();
-        } else if (this.game.core.gameStateManager.is(States.PLAYING)) {
+        } else if (this.game.core.gameStateManager.is(States.PLAYING) && document.pointerLockElement === this.game.renderer.domElement) {
           this.game.pauseManager.pause();
         } else {
           document.exitPointerLock();
