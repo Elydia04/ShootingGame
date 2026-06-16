@@ -60,37 +60,109 @@
     <div id="multi-lobby-screen" class="screen hidden">
       <div class="multi-lobby-content">
         <h2>Multiplayer</h2>
-        <div class="lobby-mode-switch">
-          <button id="btn-create-lobby" class="menu-btn primary">Create Lobby</button>
-          <button id="btn-join-lobby" class="menu-btn">Join Lobby</button>
+
+        <div class="lobby-name-section">
+          <label>Player Name</label>
+          <input type="text" id="player-name-input" class="lobby-input" placeholder="Enter your name" maxlength="16" value="Player" autocomplete="off">
         </div>
-        <div id="lobby-code-section" class="lobby-code-section">
-          <div id="lobby-create-display" class="hidden">
+
+        <div class="lobby-mode-select">
+          <p class="lobby-mode-hint">Choose an option below</p>
+          <div class="lobby-mode-buttons">
+            <button id="btn-create-lobby" class="menu-btn primary">Create Lobby</button>
+            <button id="btn-join-lobby" class="menu-btn">Join Lobby</button>
+          </div>
+        </div>
+
+        <button id="btn-multi-back" class="menu-btn" style="margin-top:1.2rem">Back</button>
+      </div>
+    </div>
+
+    <div id="create-lobby-screen" class="screen hidden">
+      <div class="multi-lobby-content wide">
+        <h2>Create Lobby</h2>
+
+        <div class="lobby-split">
+          <div class="lobby-panel">
             <h3>Your Lobby Code</h3>
             <div id="lobby-code" class="lobby-code">------</div>
-            <p class="lobby-hint">Share this code with friends to join</p>
+            <button id="btn-generate-code" class="menu-btn" style="margin-top:10px;width:auto;padding:6px 14px;font-size:0.85rem">Generate</button>
+            <p class="lobby-hint" style="margin-top:8px">Share this code with friends to join</p>
           </div>
-          <div id="lobby-join-input" class="hidden">
-            <h3>Join Lobby</h3>
-            <input type="text" id="lobby-code-input" class="lobby-input" placeholder="Enter lobby code" maxlength="6" autocomplete="off">
-            <button id="btn-join-confirm" class="menu-btn primary">Join</button>
+          <div id="player-list" class="lobby-panel">
+            <h3>Players</h3>
+            <div class="player-list-inner">
+              <div class="player-entry">
+                <span class="player-name">You</span>
+                <span class="player-ready">Ready</span>
+              </div>
+            </div>
           </div>
         </div>
-        <div id="player-list" class="player-list">
-          <div class="player-entry">
-            <span class="player-name">You</span>
-            <span class="player-ready">Ready</span>
+
+        <div class="setup-section" style="margin-top:0.8rem">
+          <h3>Map</h3>
+          <div id="multi-map-selection" class="map-grid"></div>
+        </div>
+
+        <div class="lobby-config-row">
+          <div class="config-item">
+            <label>Time Limit (min)</label>
+            <div class="config-control">
+              <input type="range" id="multi-time-limit" class="slider" min="5" max="30" value="10" step="5">
+              <span id="multi-time-display" class="range-value">10</span>
+            </div>
+          </div>
+          <div class="config-item">
+            <label>Score Limit</label>
+            <div class="config-control">
+              <input type="range" id="multi-score-limit" class="slider" min="10" max="100" value="50" step="10">
+              <span id="multi-score-display" class="range-value">50</span>
+            </div>
           </div>
         </div>
-        <div class="lobby-actions">
+
+        <div class="lobby-actions" style="margin-top:0.8rem">
           <button id="btn-ready" class="menu-btn primary">Ready</button>
           <button id="btn-start-game" class="menu-btn primary hidden">Start Game</button>
-          <button id="btn-leave-lobby" class="menu-btn">Leave</button>
+          <button id="btn-leave-create" class="menu-btn">Leave</button>
         </div>
       </div>
     </div>
 
-    <div id="game-hud" class="hidden">
+    <div id="join-lobby-screen" class="screen hidden">
+      <div class="multi-lobby-content">
+        <h2>Join Lobby</h2>
+
+        <div id="join-form-section">
+          <div class="lobby-join-center">
+            <div class="lobby-code-with-btn">
+              <input type="text" id="lobby-code-input" class="lobby-input" placeholder="Enter Code" maxlength="6" autocomplete="off">
+              <button id="btn-join-confirm" class="menu-btn primary" style="width:auto;padding:6px 14px;font-size:0.85rem">Join</button>
+            </div>
+          </div>
+          <div class="lobby-actions" style="margin-top:1rem">
+            <button id="btn-leave-join" class="menu-btn">Back</button>
+          </div>
+        </div>
+
+        <div id="join-lobby-section" class="hidden">
+          <div id="player-list-join" class="lobby-panel" style="margin-bottom:1rem">
+            <h3>Players</h3>
+            <div class="player-list-inner">
+              <div class="player-entry">
+                <span class="player-name">You</span>
+                <span class="player-ready">Ready</span>
+              </div>
+            </div>
+          </div>
+          <div class="lobby-actions">
+            <button id="btn-ready-join" class="menu-btn primary">Ready</button>
+            <button id="btn-leave-joined" class="menu-btn">Leave</button>
+          </div>
+        </div>
+      </div>
+    </div>
       <div id="crosshair" class="crosshair">
         <div class="crosshair-line top"></div>
         <div class="crosshair-line right"></div>

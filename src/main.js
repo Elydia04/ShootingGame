@@ -368,7 +368,7 @@ class Game {
       this._multiWs = ws;
       this._multiHost = true;
       this._multiCode = data.code;
-      ws.onopen = () => ws.send(JSON.stringify({ type: 'create_room', data: { name: 'Player' } }));
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'create_room', data: { code: data.code, name: data.name || 'Player', config: data.config } }));
       ws.onmessage = (e) => this._handleMultiMessage(JSON.parse(e.data));
       ws.onclose = () => { this._multiWs = null; };
     });
@@ -378,7 +378,7 @@ class Game {
       this._multiWs = ws;
       this._multiHost = false;
       this._multiCode = data.code;
-      ws.onopen = () => ws.send(JSON.stringify({ type: 'join_room', data: { code: data.code, name: 'Player' } }));
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'join_room', data: { code: data.code, name: data.name || 'Player' } }));
       ws.onmessage = (e) => this._handleMultiMessage(JSON.parse(e.data));
       ws.onclose = () => { this._multiWs = null; };
     });
@@ -389,9 +389,9 @@ class Game {
       }
     });
 
-    this.core.eventBus.on('lobby:start', () => {
+    this.core.eventBus.on('lobby:start', (data) => {
       if (this._multiWs && this._multiHost) {
-        this._multiWs.send(JSON.stringify({ type: 'start_game' }));
+        this._multiWs.send(JSON.stringify({ type: 'start_game', data: { config: data?.config } }));
       }
     });
   }
@@ -409,6 +409,9 @@ class Game {
         this.ui.uiManager.setMultiLobbyPlayers(msg.data.players);
         document.getElementById('lobby-code').textContent = msg.data.code;
         document.getElementById('btn-start-game')?.classList.toggle('hidden', !this._multiHost);
+        if (msg.type === 'room_joined') {
+          this.core.eventBus.emit('lobby:joined');
+        }
         break;
 
       case 'player_joined':

@@ -75,8 +75,9 @@ wss.on('connection', (ws) => {
 
     switch (msg.type) {
       case 'create_room': {
-        const code = Math.random().toString(36).slice(2, 6).toUpperCase();
+        const code = msg.data?.code || Math.random().toString(36).slice(2, 8).toUpperCase();
         const room = getOrCreateRoom(code);
+        if (msg.data?.config) room.configure(msg.data.config);
         room.addPlayer(playerId, msg.data?.name || 'Player', ws);
         currentRoom = room;
         ws.send(JSON.stringify({ type: 'room_created', data: { code, players: room.getPlayerList() } }));
@@ -99,7 +100,8 @@ wss.on('connection', (ws) => {
         }
         room.addPlayer(playerId, msg.data?.name || 'Player', ws);
         currentRoom = room;
-        ws.send(JSON.stringify({ type: 'room_joined', data: { code, players: room.getPlayerList() } }));
+        const config = room.getConfig();
+        ws.send(JSON.stringify({ type: 'room_joined', data: { code, players: room.getPlayerList(), config } }));
         break;
       }
       case 'player_ready': {
@@ -108,6 +110,7 @@ wss.on('connection', (ws) => {
       }
       case 'start_game': {
         if (currentRoom && currentRoom.hostId === playerId) {
+          if (msg.data?.config) currentRoom.configure(msg.data.config);
           currentRoom.startGame();
         }
         break;

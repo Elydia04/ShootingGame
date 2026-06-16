@@ -99,11 +99,24 @@ export class HUD {
   }
 
   updateAmmo(current, reserve) {
-    if (this.elements.ammoCurrent) {
-      this.elements.ammoCurrent.textContent = current;
-    }
-    if (this.elements.ammoReserve) {
-      this.elements.ammoReserve.textContent = reserve;
+    const separator = document.querySelector('#ammo-display .ammo-separator');
+    if (current <= 0 && reserve <= 0) {
+      if (this.elements.ammoCurrent) {
+        this.elements.ammoCurrent.textContent = 'No Ammo';
+        this.elements.ammoCurrent.style.color = '#ff2222';
+      }
+      if (this.elements.ammoReserve) this.elements.ammoReserve.style.display = 'none';
+      if (separator) separator.style.display = 'none';
+    } else {
+      if (this.elements.ammoCurrent) {
+        this.elements.ammoCurrent.textContent = current;
+        this.elements.ammoCurrent.style.color = '';
+      }
+      if (this.elements.ammoReserve) {
+        this.elements.ammoReserve.textContent = reserve;
+        this.elements.ammoReserve.style.display = '';
+      }
+      if (separator) separator.style.display = '';
     }
   }
 

@@ -243,6 +243,9 @@ export class AudioManager {
 
     const reload = this._generateNoise(0.3, 8);
     this.registerClip('reload', reload, 0.25, 1.0);
+
+    const knifeSwing = this._generateNoise(0.08, 25);
+    this.registerClip('knife_swing', knifeSwing, 0.5, 1.2);
   }
 
   dispose() {

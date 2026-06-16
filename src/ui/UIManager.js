@@ -18,6 +18,8 @@ export class UIManager {
       mainMenu: document.getElementById('main-menu'),
       soloSetup: document.getElementById('solo-setup-screen'),
       multiLobby: document.getElementById('multi-lobby-screen'),
+      createLobby: document.getElementById('create-lobby-screen'),
+      joinLobby: document.getElementById('join-lobby-screen'),
       matchEnd: document.getElementById('match-end-screen')
     };
 
@@ -120,42 +122,119 @@ export class UIManager {
   }
 
   _setupMultiLobby() {
+    const getName = () => document.getElementById('player-name-input')?.value?.trim() || 'Player';
+    this._multiConfig = { map: 'training_map', timeLimit: 10, scoreLimit: 50 };
+
+    const showScreen = (screenId) => {
+      this._hideAllScreens();
+      const el = this.screens[screenId];
+      if (el) el.classList.remove('hidden');
+    };
+
     document.getElementById('btn-create-lobby')?.addEventListener('click', () => {
       this.multiLobby.isHost = true;
+      const name = getName();
       this.multiLobby.code = this._generateLobbyCode();
-      this._showLobbySection('create');
       document.getElementById('lobby-code').textContent = this.multiLobby.code;
-      this.eventBus.emit('lobby:created', { code: this.multiLobby.code });
+      this._renderMultiMapSelection();
+      this._setupMultiSliders();
+      showScreen('createLobby');
+      this.eventBus.emit('lobby:created', { code: this.multiLobby.code, name, config: { ...this._multiConfig } });
     });
 
     document.getElementById('btn-join-lobby')?.addEventListener('click', () => {
       this.multiLobby.isHost = false;
-      this._showLobbySection('join');
+      document.getElementById('join-form-section')?.classList.remove('hidden');
+      document.getElementById('join-lobby-section')?.classList.add('hidden');
+      document.getElementById('lobby-code-input').value = '';
+      showScreen('joinLobby');
     });
 
-    document.getElementById('btn-join-confirm')?.addEventListener('click', () => {
-      const code = document.getElementById('lobby-code-input')?.value?.toUpperCase().trim();
-      if (code && code.length === 6) {
-        this.multiLobby.code = code;
-        this.eventBus.emit('lobby:join', { code });
-      }
+    document.getElementById('btn-multi-back')?.addEventListener('click', () => {
+      this.gsm.transitionTo(States.MAIN_MENU);
     });
 
-    document.getElementById('btn-ready')?.addEventListener('click', () => {
-      const btn = document.getElementById('btn-ready');
+    const readyToggle = (btn) => {
       const isReady = btn.textContent === 'Ready';
       btn.textContent = isReady ? 'Unready' : 'Ready';
       btn.classList.toggle('primary', isReady);
       this.eventBus.emit('lobby:ready', isReady);
+    };
+
+    document.getElementById('btn-ready')?.addEventListener('click', (e) => readyToggle(e.currentTarget));
+    document.getElementById('btn-ready-join')?.addEventListener('click', (e) => readyToggle(e.currentTarget));
+    document.getElementById('btn-start-game')?.addEventListener('click', () => {
+      const map = document.querySelector('#multi-map-selection .map-card.selected')?.dataset.map || 'training_map';
+      this._multiConfig.map = map;
+      this._multiConfig.timeLimit = parseInt(document.getElementById('multi-time-limit')?.value || 10);
+      this._multiConfig.scoreLimit = parseInt(document.getElementById('multi-score-limit')?.value || 50);
+      this.eventBus.emit('lobby:start', { config: { ...this._multiConfig } });
     });
 
-    document.getElementById('btn-leave-lobby')?.addEventListener('click', () => {
+    document.getElementById('btn-leave-create')?.addEventListener('click', () => {
+      this.gsm.transitionTo(States.MAIN_MENU);
+    });
+    document.getElementById('btn-leave-join')?.addEventListener('click', () => {
+      this.gsm.transitionTo(States.MAIN_MENU);
+    });
+    document.getElementById('btn-leave-joined')?.addEventListener('click', () => {
       this.gsm.transitionTo(States.MAIN_MENU);
     });
 
-    document.getElementById('btn-start-game')?.addEventListener('click', () => {
-      this.eventBus.emit('lobby:start');
+    document.getElementById('lobby-code-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('btn-join-confirm')?.click();
     });
+
+    document.getElementById('btn-generate-code')?.addEventListener('click', () => {
+      this.multiLobby.code = this._generateLobbyCode();
+      document.getElementById('lobby-code').textContent = this.multiLobby.code;
+    });
+
+    document.getElementById('btn-join-confirm')?.addEventListener('click', () => {
+      const code = document.getElementById('lobby-code-input')?.value?.toUpperCase().trim();
+      if (code && code.length >= 4 && code.length <= 6) {
+        this.multiLobby.code = code;
+        const name = getName();
+        this.eventBus.emit('lobby:join', { code, name });
+      }
+    });
+
+    this.eventBus.on('lobby:joined', () => {
+      document.getElementById('join-form-section')?.classList.add('hidden');
+      document.getElementById('join-lobby-section')?.classList.remove('hidden');
+    });
+  }
+
+  _renderMultiMapSelection() {
+    const container = document.getElementById('multi-map-selection');
+    if (!container) return;
+
+    container.innerHTML = MAPS.map((map, i) => `
+      <div class="map-card ${i === 0 ? 'selected' : ''}" data-map="${map.id}">
+        <span class="map-name">${map.name}</span>
+        <span class="map-desc">${map.desc}</span>
+      </div>
+    `).join('');
+
+    container.querySelectorAll('.map-card').forEach(card => {
+      card.addEventListener('click', () => {
+        container.querySelectorAll('.map-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+      });
+    });
+  }
+
+  _setupMultiSliders() {
+    const timeSlider = document.getElementById('multi-time-limit');
+    const timeDisplay = document.getElementById('multi-time-display');
+    if (timeSlider && timeDisplay) {
+      timeSlider.oninput = () => { timeDisplay.textContent = timeSlider.value; };
+    }
+    const scoreSlider = document.getElementById('multi-score-limit');
+    const scoreDisplay = document.getElementById('multi-score-display');
+    if (scoreSlider && scoreDisplay) {
+      scoreSlider.oninput = () => { scoreDisplay.textContent = scoreSlider.value; };
+    }
   }
 
   _generateLobbyCode() {
@@ -165,11 +244,6 @@ export class UIManager {
       code += chars[Math.floor(Math.random() * chars.length)];
     }
     return code;
-  }
-
-  _showLobbySection(section) {
-    document.getElementById('lobby-create-display')?.classList.toggle('hidden', section !== 'create');
-    document.getElementById('lobby-join-input')?.classList.toggle('hidden', section !== 'join');
   }
 
   _setupMatchEnd() {
@@ -203,9 +277,7 @@ export class UIManager {
         break;
       case States.MULTI_LOBBY:
         this.screens.multiLobby.classList.remove('hidden');
-        this._showLobbySection('create');
-        this.multiLobby.code = this._generateLobbyCode();
-        document.getElementById('lobby-code').textContent = this.multiLobby.code;
+        document.getElementById('lobby-code-input').value = '';
         break;
       case States.PLAYING:
       case States.SPECTATING:
@@ -238,15 +310,18 @@ export class UIManager {
   }
 
   setMultiLobbyPlayers(players) {
-    const list = document.getElementById('player-list');
-    if (!list) return;
-
-    list.innerHTML = players.map(p => `
+    const html = players.map(p => `
       <div class="player-entry">
         <span class="player-name">${p.name}</span>
         <span class="player-ready">${p.ready ? 'Ready' : 'Not Ready'}</span>
       </div>
     `).join('');
+
+    const createList = document.querySelector('#player-list .player-list-inner');
+    if (createList) createList.innerHTML = html;
+
+    const joinList = document.querySelector('#player-list-join .player-list-inner');
+    if (joinList) joinList.innerHTML = html;
   }
 
   showMatchEnd(stats, mode = 'solo') {

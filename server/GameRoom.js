@@ -51,6 +51,25 @@ export class GameRoom {
     });
   }
 
+  configure(config) {
+    if (config.map) {
+      this.mapId = config.map;
+      this.mapData = MAPS[config.map] || MAPS.training_map;
+    }
+    const matchConfig = {};
+    if (config.timeLimit != null) matchConfig.timeLimit = config.timeLimit * 60;
+    if (config.scoreLimit != null) matchConfig.scoreLimit = config.scoreLimit;
+    this.matchManager.configure(matchConfig);
+  }
+
+  getConfig() {
+    return {
+      map: this.mapId,
+      timeLimit: this.matchManager.config.timeLimit / 60,
+      scoreLimit: this.matchManager.config.scoreLimit
+    };
+  }
+
   addPlayer(id, name, ws) {
     const spawn = this._getSpawn();
     const player = {

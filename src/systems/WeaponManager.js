@@ -242,6 +242,9 @@ export class WeaponManager {
   update(deltaTime) {
     for (const weapon of this.weapons) {
       weapon.updateReload(deltaTime);
+      if (weapon.currentAmmo <= 0 && weapon.reserveAmmo > 0 && !weapon.reloading && !weapon.melee) {
+        weapon.startReload();
+      }
     }
   }
 
