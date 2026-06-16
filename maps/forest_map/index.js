@@ -10,9 +10,9 @@ export const forestMap = {
   },
 
   lighting: {
-    ambient: { color: 0x404060, intensity: 0.35 },
-    directional: { color: 0xffeedd, intensity: 0.7, x: 60, y: 80, z: 40 },
-    hemisphere: { skyColor: 0x87ceeb, groundColor: 0x362d22, intensity: 0.25 }
+    ambient: { color: 0x404060, intensity: 0.5 },
+    directional: { color: 0xffeedd, intensity: 1.0, x: 60, y: 80, z: 40 },
+    hemisphere: { skyColor: 0x87ceeb, groundColor: 0x362d22, intensity: 0.35 }
   },
 
   skybox: {

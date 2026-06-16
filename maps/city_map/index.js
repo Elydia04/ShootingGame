@@ -10,9 +10,9 @@ export const cityMap = {
   },
 
   lighting: {
-    ambient: { color: 0x606080, intensity: 0.4 },
-    directional: { color: 0xffffff, intensity: 0.8, x: 30, y: 100, z: 50 },
-    hemisphere: { skyColor: 0x88aacc, groundColor: 0x443322, intensity: 0.3 }
+    ambient: { color: 0x606080, intensity: 0.55 },
+    directional: { color: 0xffffff, intensity: 1.1, x: 30, y: 100, z: 50 },
+    hemisphere: { skyColor: 0x88aacc, groundColor: 0x443322, intensity: 0.4 }
   },
 
   skybox: {

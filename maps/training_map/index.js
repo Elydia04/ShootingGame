@@ -10,9 +10,9 @@ export const trainingMap = {
   },
 
   lighting: {
-    ambient: { color: 0x808080, intensity: 0.5 },
-    directional: { color: 0xffffff, intensity: 1.0, x: 30, y: 60, z: 30 },
-    hemisphere: { skyColor: 0xaaccff, groundColor: 0x556655, intensity: 0.3 }
+    ambient: { color: 0x808080, intensity: 0.7 },
+    directional: { color: 0xffffff, intensity: 1.3, x: 30, y: 60, z: 30 },
+    hemisphere: { skyColor: 0xaaccff, groundColor: 0x556655, intensity: 0.4 }
   },
 
   skybox: {
