@@ -5,7 +5,14 @@ export default defineConfig({
   publicDir: 'assets',
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['three']
+        }
+      }
+    }
   },
   server: {
     port: 3000,
