@@ -30,7 +30,7 @@ export class GameRoom {
 
     this.matchManager.on('start', () => {
       this.state = 'playing';
-      this._broadcast({ type: 'game_started', data: { mapId: this.mapId } });
+      this._broadcast({ type: 'game_started', data: { mapId: this.mapId, config: this.getConfig() } });
     });
 
     this.matchManager.on('kill', (data) => {

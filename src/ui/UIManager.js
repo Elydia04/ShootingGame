@@ -146,6 +146,7 @@ export class UIManager {
       this.multiLobby.isHost = false;
       document.getElementById('join-form-section')?.classList.remove('hidden');
       document.getElementById('join-lobby-section')?.classList.add('hidden');
+      document.getElementById('join-error')?.classList.add('hidden');
       document.getElementById('lobby-code-input').value = '';
       showScreen('joinLobby');
     });
@@ -202,6 +203,11 @@ export class UIManager {
     this.eventBus.on('lobby:joined', () => {
       document.getElementById('join-form-section')?.classList.add('hidden');
       document.getElementById('join-lobby-section')?.classList.remove('hidden');
+    });
+
+    this.eventBus.on('lobby:error', (msg) => {
+      const el = document.getElementById('join-error');
+      if (el) { el.textContent = msg; el.classList.remove('hidden'); }
     });
   }
 

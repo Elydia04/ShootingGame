@@ -358,39 +358,38 @@ class Game {
   _setupMultiplayer() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const SERVER_URL = `${protocol}//${window.location.host}/ws`;
-    let ws = null;
     this._multiWs = null;
     this._multiHost = false;
     this._multiCode = null;
 
     this.core.eventBus.on('lobby:created', (data) => {
-      ws = new WebSocket(SERVER_URL);
+      const ws = new WebSocket(SERVER_URL);
       this._multiWs = ws;
       this._multiHost = true;
       this._multiCode = data.code;
-      ws.onopen = () => ws.send(JSON.stringify({ type: 'create_room', data: { code: data.code, name: data.name || 'Player', config: data.config } }));
+      ws.onopen = () => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'create_room', data: { code: data.code, name: data.name || 'Player', config: data.config } })); };
       ws.onmessage = (e) => this._handleMultiMessage(JSON.parse(e.data));
-      ws.onclose = () => { this._multiWs = null; };
+      ws.onclose = () => { if (this._multiWs === ws) this._multiWs = null; };
     });
 
     this.core.eventBus.on('lobby:join', (data) => {
-      ws = new WebSocket(SERVER_URL);
+      const ws = new WebSocket(SERVER_URL);
       this._multiWs = ws;
       this._multiHost = false;
       this._multiCode = data.code;
-      ws.onopen = () => ws.send(JSON.stringify({ type: 'join_room', data: { code: data.code, name: data.name || 'Player' } }));
+      ws.onopen = () => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'join_room', data: { code: data.code, name: data.name || 'Player' } })); };
       ws.onmessage = (e) => this._handleMultiMessage(JSON.parse(e.data));
-      ws.onclose = () => { this._multiWs = null; };
+      ws.onclose = () => { if (this._multiWs === ws) this._multiWs = null; };
     });
 
     this.core.eventBus.on('lobby:ready', (isReady) => {
-      if (this._multiWs) {
+      if (this._multiWs && this._multiWs.readyState === WebSocket.OPEN) {
         this._multiWs.send(JSON.stringify({ type: 'player_ready', data: { ready: isReady } }));
       }
     });
 
     this.core.eventBus.on('lobby:start', (data) => {
-      if (this._multiWs && this._multiHost) {
+      if (this._multiWs && this._multiWs.readyState === WebSocket.OPEN && this._multiHost) {
         this._multiWs.send(JSON.stringify({ type: 'start_game', data: { config: data?.config } }));
       }
     });
@@ -425,7 +424,7 @@ class Game {
         break;
 
       case 'game_started':
-        this.core.gameStateManager.transitionTo(States.PLAYING, { mode: 'multi', map: msg.data.mapId });
+        this.core.gameStateManager.transitionTo(States.PLAYING, { mode: 'multi', map: msg.data.mapId, config: msg.data.config });
         break;
 
       case 'state':
@@ -465,11 +464,14 @@ class Game {
 
       case 'error':
         console.error('[Multi]', msg.data.message);
+        this.core.eventBus.emit('lobby:error', msg.data.message);
         break;
     }
   }
 
-  _startMultiGame(mapId) {
+  _startMultiGame(data) {
+    const mapId = data.map;
+    const config = data.config || {};
     this.gameMode = 'multi';
     this.playerAlive = true;
     this.playerHealth = this.playerMaxHealth;
@@ -482,7 +484,7 @@ class Game {
       this.player.controller.teleport(spawn.position.x, spawn.position.y, spawn.position.z);
     }
 
-    this.systems.matchManager.configure({ type: 'deathmatch', scoreLimit: 50, timeLimit: 600, teamMode: false });
+    this.systems.matchManager.configure({ type: 'deathmatch', scoreLimit: config.scoreLimit || 50, timeLimit: (config.timeLimit || 10) * 60, teamMode: false });
     this.systems.matchManager.registerPlayer('local', 'Player');
     this.systems.matchManager.start();
 
@@ -678,7 +680,7 @@ class Game {
       if (data?.data?.mode === 'solo') {
         this._startSoloGame(data.data);
       } else if (data?.data?.mode === 'multi') {
-        this._startMultiGame(data.data.map);
+        this._startMultiGame(data.data);
       }
     });
 
