@@ -79,7 +79,7 @@ export class FirstPersonWeapon {
     const barrelMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.8, roughness: 0.2, emissive: 0x333333, emissiveIntensity: 0.15 });
     this.barrel = new THREE.Mesh(barrelGeo, barrelMat);
     this.barrel.rotation.x = Math.PI / 2;
-    this.barrel.position.set(0, 0.02, 0.28);
+    this.barrel.position.set(0, 0.02, -0.28);
     this.weaponGroup.add(this.barrel);
 
     this.muzzle = new THREE.Vector3();
@@ -88,19 +88,19 @@ export class FirstPersonWeapon {
     const magGeo = new THREE.BoxGeometry(0.03, 0.07, 0.08);
     const magMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.4, roughness: 0.5, emissive: 0x444444, emissiveIntensity: 0.15 });
     this.magazine = new THREE.Mesh(magGeo, magMat);
-    this.magazine.position.set(0, -0.06, -0.05);
+    this.magazine.position.set(0, -0.06, 0.05);
     this.weaponGroup.add(this.magazine);
 
     const stockGeo = new THREE.BoxGeometry(0.04, 0.04, 0.15);
     const stockMat = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 0.7, emissive: 0x555555, emissiveIntensity: 0.15 });
     this.stock = new THREE.Mesh(stockGeo, stockMat);
-    this.stock.position.set(0, -0.01, -0.28);
+    this.stock.position.set(0, -0.01, 0.28);
     this.weaponGroup.add(this.stock);
 
     const handguardGeo = new THREE.BoxGeometry(0.03, 0.03, 0.12);
     const handguardMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.6, emissive: 0x444444, emissiveIntensity: 0.15 });
     this.handguard = new THREE.Mesh(handguardGeo, handguardMat);
-    this.handguard.position.set(0, 0, 0.18);
+    this.handguard.position.set(0, 0, -0.18);
     this.weaponGroup.add(this.handguard);
 
     const gripGeo = new THREE.BoxGeometry(0.025, 0.04, 0.035);
@@ -110,17 +110,17 @@ export class FirstPersonWeapon {
     this.grip.rotation.x = 0.1;
     this.weaponGroup.add(this.grip);
 
-    // Red dot sight (rifle)
+    // Red dot sight (rifle) - reversed side
     const rdMount = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.006, 0.015), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.4 }));
-    rdMount.position.set(-0.005, 0.048, 0.04);
+    rdMount.position.set(-0.005, 0.048, -0.04);
     this.weaponGroup.add(rdMount);
     const rdGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x4466aa, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.0, emissive: 0x224488, emissiveIntensity: 0.1 });
     const rdGlass = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.018, 0.002), rdGlassMat);
-    rdGlass.position.set(-0.005, 0.058, 0.05);
+    rdGlass.position.set(-0.005, 0.058, -0.05);
     this.weaponGroup.add(rdGlass);
     const rdDotMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 3 });
     const rdDot = new THREE.Mesh(new THREE.SphereGeometry(0.003, 6, 6), rdDotMat);
-    rdDot.position.set(-0.005, 0.058, 0.049);
+    rdDot.position.set(-0.005, 0.058, -0.049);
     this.weaponGroup.add(rdDot);
   }
 
@@ -151,7 +151,14 @@ export class FirstPersonWeapon {
   }
 
   _getMuzzleZ() {
-    return 0.48;
+    switch (this.currentWeaponType) {
+      case 'Pistol': return -0.18;
+      case 'SMG': return -0.2;
+      case 'Rifle': case 'M4A1': return -0.28;
+      case 'Shotgun': return -0.28;
+      case 'Sniper': return -0.4;
+      default: return 0.48;
+    }
   }
 
   playShoot() {
@@ -319,11 +326,13 @@ export class FirstPersonWeapon {
     }
 
     this.muzzleFlash = new THREE.PointLight(0xffaa44, 0, 4);
-    this.muzzleFlash.position.set(0, 0.02, 0.48);
+    const mz = this._getMuzzleZ();
+    this.muzzleFlash.position.set(0, 0.02, mz);
     this.weaponGroup.add(this.muzzleFlash);
     this.flashTimer = 0;
 
     this._createFlashSprite();
+    this.flashSprite.position.set(0, 0.02, mz + 0.04);
 
     this._resetPose();
 
@@ -342,27 +351,27 @@ export class FirstPersonWeapon {
     const barrelMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8, roughness: 0.2, emissive: 0x111111, emissiveIntensity: 0.1 });
     const barrel = new THREE.Mesh(barrelGeo, barrelMat);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.02, 0.12);
+    barrel.position.set(0, 0.02, -0.12);
     this.weaponGroup.add(barrel);
 
     const silencerGeo = new THREE.CylinderGeometry(0.016, 0.018, 0.07, 8);
     const silencerMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.1 });
     const silencer = new THREE.Mesh(silencerGeo, silencerMat);
     silencer.rotation.x = Math.PI / 2;
-    silencer.position.set(0, 0.02, 0.18);
+    silencer.position.set(0, 0.02, -0.18);
     this.weaponGroup.add(silencer);
 
     const gripGeo = new THREE.BoxGeometry(0.025, 0.06, 0.045);
     const gripMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.7, emissive: 0x333333, emissiveIntensity: 0.1 });
     const grip = new THREE.Mesh(gripGeo, gripMat);
-    grip.position.set(0, -0.045, -0.04);
-    grip.rotation.x = 0.15;
+    grip.position.set(0, -0.045, 0.04);
+    grip.rotation.x = -0.15;
     this.weaponGroup.add(grip);
 
     const magGeo = new THREE.BoxGeometry(0.02, 0.04, 0.03);
     const magMat = new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.3, roughness: 0.5, emissive: 0x222222, emissiveIntensity: 0.1 });
     const mag = new THREE.Mesh(magGeo, magMat);
-    mag.position.set(0, -0.07, -0.04);
+    mag.position.set(0, -0.07, 0.04);
     this.weaponGroup.add(mag);
   }
 
@@ -377,7 +386,7 @@ export class FirstPersonWeapon {
     const barrelMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.7, roughness: 0.2, emissive: 0x111111, emissiveIntensity: 0.1 });
     const barrel = new THREE.Mesh(barrelGeo, barrelMat);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.02, 0.2);
+    barrel.position.set(0, 0.02, -0.2);
     this.weaponGroup.add(barrel);
 
     const magGeo = new THREE.BoxGeometry(0.025, 0.08, 0.05);
@@ -389,20 +398,20 @@ export class FirstPersonWeapon {
     const stockGeo = new THREE.BoxGeometry(0.03, 0.03, 0.12);
     const stockMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.6, emissive: 0x333333, emissiveIntensity: 0.1 });
     const stock = new THREE.Mesh(stockGeo, stockMat);
-    stock.position.set(0, -0.01, -0.18);
+    stock.position.set(0, -0.01, 0.18);
     this.weaponGroup.add(stock);
 
-    // Red dot sight (SMG)
+    // Red dot sight (SMG) - reversed side
     const rdMount = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.005, 0.012), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.4 }));
-    rdMount.position.set(-0.004, 0.035, 0.05);
+    rdMount.position.set(-0.004, 0.035, -0.05);
     this.weaponGroup.add(rdMount);
     const rdGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x4466aa, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.0, emissive: 0x224488, emissiveIntensity: 0.1 });
     const rdGlass = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.014, 0.002), rdGlassMat);
-    rdGlass.position.set(-0.004, 0.042, 0.06);
+    rdGlass.position.set(-0.004, 0.042, -0.06);
     this.weaponGroup.add(rdGlass);
     const rdDotMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 3 });
     const rdDot = new THREE.Mesh(new THREE.SphereGeometry(0.0025, 6, 6), rdDotMat);
-    rdDot.position.set(-0.004, 0.042, 0.059);
+    rdDot.position.set(-0.004, 0.042, -0.059);
     this.weaponGroup.add(rdDot);
   }
 
@@ -417,19 +426,19 @@ export class FirstPersonWeapon {
     const barrelMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.7, roughness: 0.2, emissive: 0x111111, emissiveIntensity: 0.1 });
     const barrel = new THREE.Mesh(barrelGeo, barrelMat);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.02, 0.28);
+    barrel.position.set(0, 0.02, -0.28);
     this.weaponGroup.add(barrel);
 
     const forendGeo = new THREE.BoxGeometry(0.04, 0.03, 0.08);
     const forendMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.7, emissive: 0x333333, emissiveIntensity: 0.1 });
     const forend = new THREE.Mesh(forendGeo, forendMat);
-    forend.position.set(0, 0, 0.18);
+    forend.position.set(0, 0, -0.18);
     this.weaponGroup.add(forend);
 
     const stockGeo = new THREE.BoxGeometry(0.05, 0.04, 0.15);
     const stockMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.7, emissive: 0x333333, emissiveIntensity: 0.1 });
     const stock = new THREE.Mesh(stockGeo, stockMat);
-    stock.position.set(0, -0.01, -0.18);
+    stock.position.set(0, -0.01, 0.18);
     this.weaponGroup.add(stock);
   }
 
@@ -444,26 +453,26 @@ export class FirstPersonWeapon {
     const barrelMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.8, roughness: 0.1, emissive: 0x111111, emissiveIntensity: 0.1 });
     const barrel = new THREE.Mesh(barrelGeo, barrelMat);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.02, 0.4);
+    barrel.position.set(0, 0.02, -0.4);
     this.weaponGroup.add(barrel);
 
     const scopeGeo = new THREE.CylinderGeometry(0.015, 0.02, 0.1, 8);
     const scopeMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, emissive: 0x111111, emissiveIntensity: 0.1 });
     const scope = new THREE.Mesh(scopeGeo, scopeMat);
     scope.rotation.x = Math.PI / 2;
-    scope.position.set(0, 0.06, 0.1);
+    scope.position.set(0, 0.06, -0.1);
     this.weaponGroup.add(scope);
 
     const stockGeo = new THREE.BoxGeometry(0.035, 0.035, 0.15);
     const stockMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.7, emissive: 0x333333, emissiveIntensity: 0.1 });
     const stock = new THREE.Mesh(stockGeo, stockMat);
-    stock.position.set(0, -0.01, -0.3);
+    stock.position.set(0, -0.01, 0.3);
     this.weaponGroup.add(stock);
 
     const magGeo = new THREE.BoxGeometry(0.02, 0.04, 0.06);
     const magMat = new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.3, roughness: 0.5, emissive: 0x222222, emissiveIntensity: 0.1 });
     const mag = new THREE.Mesh(magGeo, magMat);
-    mag.position.set(0, -0.04, -0.05);
+    mag.position.set(0, -0.04, 0.05);
     this.weaponGroup.add(mag);
   }
 
