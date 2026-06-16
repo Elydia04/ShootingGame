@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shooting Game</title>
+  <script type="module" crossorigin src="/assets/index-YFeAc-sM.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CTEjFT9j.css">
+</head>
+<body>
+  <div id="app">
+    <div id="loading-screen" class="screen">
+      <div class="loading-content">
+        <h1>SHOOTING GAME</h1>
+        <div class="loading-bar-container">
+          <div id="loading-bar" class="loading-bar"></div>
+        </div>
+        <p id="loading-text">Loading...</p>
+      </div>
+    </div>
+
+    <div id="main-menu" class="screen hidden">
+      <div class="menu-content">
+        <h1>SHOOTING GAME</h1>
+        <div class="menu-buttons">
+          <button id="btn-solo" class="menu-btn primary">Solo Play</button>
+          <button id="btn-multi" class="menu-btn">Multiplayer</button>
+          <button id="btn-settings" class="menu-btn">Settings</button>
+          <button id="btn-quit" class="menu-btn">Quit</button>
+        </div>
+        <p class="version">v0.1.0</p>
+      </div>
+    </div>
+
+    <div id="solo-setup-screen" class="screen hidden">
+      <div class="solo-setup-content">
+        <h2>Solo Play</h2>
+        <div class="setup-section">
+          <h3>Select Map</h3>
+          <div id="map-selection" class="map-grid"></div>
+        </div>
+        <div class="setup-section">
+          <h3>Bot Difficulty</h3>
+          <div id="difficulty-selection" class="difficulty-options">
+            <button class="diff-btn" data-diff="easy">Easy</button>
+            <button class="diff-btn active" data-diff="medium">Medium</button>
+            <button class="diff-btn" data-diff="hard">Hard</button>
+          </div>
+        </div>
+        <div class="setup-section">
+          <h3>Bot Count: <span id="bot-count-display">3</span></h3>
+          <input type="range" id="bot-count-slider" min="1" max="10" value="3" class="slider">
+        </div>
+        <div class="setup-actions">
+          <button id="btn-start-solo" class="menu-btn primary">Start Game</button>
+          <button id="btn-back-solo" class="menu-btn">Back</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="multi-lobby-screen" class="screen hidden">
+      <div class="multi-lobby-content">
+        <h2>Multiplayer</h2>
+        <div class="lobby-mode-switch">
+          <button id="btn-create-lobby" class="menu-btn primary">Create Lobby</button>
+          <button id="btn-join-lobby" class="menu-btn">Join Lobby</button>
+        </div>
+        <div id="lobby-code-section" class="lobby-code-section">
+          <div id="lobby-create-display" class="hidden">
+            <h3>Your Lobby Code</h3>
+            <div id="lobby-code" class="lobby-code">------</div>
+            <p class="lobby-hint">Share this code with friends to join</p>
+          </div>
+          <div id="lobby-join-input" class="hidden">
+            <h3>Join Lobby</h3>
+            <input type="text" id="lobby-code-input" class="lobby-input" placeholder="Enter lobby code" maxlength="6" autocomplete="off">
+            <button id="btn-join-confirm" class="menu-btn primary">Join</button>
+          </div>
+        </div>
+        <div id="player-list" class="player-list">
+          <div class="player-entry">
+            <span class="player-name">You</span>
+            <span class="player-ready">Ready</span>
+          </div>
+        </div>
+        <div class="lobby-actions">
+          <button id="btn-ready" class="menu-btn primary">Ready</button>
+          <button id="btn-leave-lobby" class="menu-btn">Leave</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="game-hud" class="hidden">
+      <div id="crosshair" class="crosshair">
+        <div class="crosshair-line top"></div>
+        <div class="crosshair-line right"></div>
+        <div class="crosshair-line bottom"></div>
+        <div class="crosshair-line left"></div>
+      </div>
+      <div id="hud-top" class="hud-top">
+        <div id="match-timer" class="hud-timer">5:00</div>
+        <div id="score-display" class="hud-score">0 - 0</div>
+      </div>
+      <div id="hud-bottom" class="hud-bottom">
+        <div id="health-bar" class="health-bar">
+          <div id="health-fill" class="health-fill"></div>
+          <span id="health-text">100</span>
+        </div>
+        <div id="ammo-display" class="ammo-display">
+          <span id="ammo-current">30</span>
+          <span class="ammo-separator">/</span>
+          <span id="ammo-reserve">90</span>
+        </div>
+        <div id="weapon-display" class="weapon-display">
+          <span id="weapon-name">Rifle</span>
+        </div>
+      </div>
+      <div id="kill-feed" class="kill-feed"></div>
+      <div id="damage-vignette" class="vignette-flash hidden"></div>
+      <div id="damage-indicator" class="damage-indicator hidden">
+        <div class="damage-arrow">&#9650;</div>
+      </div>
+      <div id="slow-indicator" class="slow-indicator">LEG HIT - SLOWED</div>
+      <button id="view-toggle" class="view-toggle" title="Toggle Camera (V)">1P</button>
+      <div id="hit-marker" class="hit-marker hidden"><span class="hit-icon">&#10005;</span></div>
+    </div>
+
+    <div id="settings-screen" class="screen hidden">
+      <div class="settings-content">
+        <h2>Settings</h2>
+        <div class="settings-tabs">
+          <button class="tab-btn active" data-tab="graphics">Graphics</button>
+          <button class="tab-btn" data-tab="controls">Controls</button>
+          <button class="tab-btn" data-tab="audio">Audio</button>
+        </div>
+        <div id="settings-panel" class="settings-panel"></div>
+        <div class="settings-actions">
+          <button id="btn-save-settings" class="menu-btn primary">Save</button>
+          <button id="btn-reset-settings" class="menu-btn">Reset</button>
+          <button id="btn-back-settings" class="menu-btn">Back</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="debug-overlay" class="debug-overlay hidden">
+      <div id="debug-fps">FPS: 0</div>
+      <div id="debug-ping">Ping: 0ms</div>
+      <div id="debug-position">Pos: 0, 0, 0</div>
+      <div id="debug-state">State: Loading</div>
+      <div id="debug-weapon">Weapon: none</div>
+      <div id="debug-latency">Latency: 0ms</div>
+    </div>
+
+    <div id="match-end-screen" class="screen hidden">
+      <div class="match-end-content">
+        <h2 id="match-result">Match Over</h2>
+        <div id="match-stats" class="match-stats"></div>
+        <div class="match-end-actions">
+          <button id="btn-play-again" class="menu-btn primary">Play Again</button>
+          <button id="btn-leave-match" class="menu-btn">Main Menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-canvas-container"></div>
+
+</body>
+</html>

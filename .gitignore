@@ -1,0 +1,9 @@
+build/
+.vscode/
+*.exe
+*.obj
+*.o
+*.dll
+*.pdb
+Debug/
+Release/
