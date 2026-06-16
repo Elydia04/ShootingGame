@@ -20,6 +20,7 @@ export class PauseManager {
 
     document.getElementById('pause-continue').addEventListener('click', () => this.resume());
     document.getElementById('pause-settings').addEventListener('click', () => {
+      this.hideOverlay();
       this.game.ui.settingsMenu?.show();
     });
     document.getElementById('pause-quit').addEventListener('click', () => {

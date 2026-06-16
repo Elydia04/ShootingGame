@@ -1,6 +1,7 @@
 export class SettingsMenu {
-  constructor(settingsManager) {
+  constructor(settingsManager, { onBackToPause } = {}) {
     this.settings = settingsManager;
+    this.onBackToPause = onBackToPause;
     this.visible = false;
     this.currentTab = 'graphics';
     this.screen = document.getElementById('settings-screen');
@@ -21,6 +22,7 @@ export class SettingsMenu {
   hide() {
     this.visible = false;
     this.screen.classList.add('hidden');
+    this.onBackToPause?.();
   }
 
   isVisible() {

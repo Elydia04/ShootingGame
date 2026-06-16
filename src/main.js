@@ -149,7 +149,9 @@ class Game {
     this.ui.hud = new HUD(this.core.eventBus);
     this.ui.hud.hide();
 
-    this.ui.settingsMenu = new SettingsMenu(this.core.settingsManager);
+    this.ui.settingsMenu = new SettingsMenu(this.core.settingsManager, {
+      onBackToPause: () => { if (this.paused) this.pauseManager.pause(); }
+    });
 
     this.inputManager = new InputManager(this);
 
