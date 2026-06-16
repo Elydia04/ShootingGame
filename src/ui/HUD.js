@@ -37,7 +37,15 @@ export class HUD {
       crosshairTop: document.querySelector('#crosshair .crosshair-line.top'),
       crosshairBottom: document.querySelector('#crosshair .crosshair-line.bottom'),
       crosshairLeft: document.querySelector('#crosshair .crosshair-line.left'),
-      crosshairRight: document.querySelector('#crosshair .crosshair-line.right')
+      crosshairRight: document.querySelector('#crosshair .crosshair-line.right'),
+      scoreboard: document.getElementById('scoreboard'),
+      scoreboardRows: document.getElementById('scoreboard-rows'),
+      deathScreen: document.getElementById('death-screen'),
+      deathInfo: document.getElementById('death-info'),
+      deathRespawnTimer: document.getElementById('death-respawn-timer'),
+      chatOverlay: document.getElementById('chat-overlay'),
+      chatMessages: document.getElementById('chat-messages'),
+      chatInput: document.getElementById('chat-input')
     };
   }
 
@@ -188,11 +196,12 @@ export class HUD {
 
     const killerTeam = data.killerTeam || '';
     const victimTeam = data.victimTeam || '';
+    const isHeadshot = data.region === 'head';
     const entry = document.createElement('div');
-    entry.className = 'kill-entry';
+    entry.className = 'kill-entry' + (isHeadshot ? ' headshot' : '');
     entry.innerHTML = `
       <span class="killer${killerTeam ? ' team-' + killerTeam.toLowerCase() : ''}">${data.killerName || 'Player'}</span>
-      <span class="weapon">[${data.weapon || '?'}]</span>
+      <span class="weapon">${isHeadshot ? '&#9762; ' : ''}[${data.weapon || '?'}]</span>
       <span class="victim${victimTeam ? ' team-' + victimTeam.toLowerCase() : ''}">${data.victimName || 'Enemy'}</span>
     `;
 
@@ -293,6 +302,94 @@ export class HUD {
     if (this.elements.viewToggle) {
       this.elements.viewToggle.textContent = isFirstPerson ? '1P' : '3P';
     }
+  }
+
+  // --- Scoreboard ---
+  showScoreboard(stats) {
+    if (!this.elements.scoreboard || !this.elements.scoreboardRows) return;
+    const rows = stats.map(s => `
+      <div class="scoreboard-row${s.local ? ' local' : ''}">
+        <span>${s.name}</span>
+        <span>${s.kills}</span>
+        <span>${s.deaths}</span>
+        <span>${s.score}</span>
+        <span>${s.ping || '-'}</span>
+      </div>
+    `).join('');
+    this.elements.scoreboardRows.innerHTML = rows;
+    this.elements.scoreboard.classList.remove('hidden');
+  }
+
+  hideScoreboard() {
+    if (this.elements.scoreboard) {
+      this.elements.scoreboard.classList.add('hidden');
+    }
+  }
+
+  // --- Death Screen ---
+  showDeathScreen(killerName, respawnTime) {
+    if (!this.elements.deathInfo || !this.elements.deathScreen) return;
+    this.elements.deathInfo.innerHTML = `Killed by <strong>${killerName || 'Unknown'}</strong>`;
+    this.elements.deathScreen.classList.remove('hidden');
+    if (this.elements.deathRespawnTimer) {
+      this.elements.deathRespawnTimer.textContent = `Respawning in ${Math.ceil(respawnTime || 0)}...`;
+    }
+  }
+
+  updateDeathRespawnTimer(time) {
+    if (this.elements.deathRespawnTimer) {
+      this.elements.deathRespawnTimer.textContent = `Respawning in ${Math.ceil(time)}...`;
+    }
+  }
+
+  hideDeathScreen() {
+    if (this.elements.deathScreen) {
+      this.elements.deathScreen.classList.add('hidden');
+    }
+  }
+
+  // --- Chat ---
+  showChat() {
+    if (!this.elements.chatOverlay) return;
+    this.elements.chatOverlay.classList.add('active');
+    if (this.elements.chatInput) {
+      this.elements.chatInput.style.display = 'block';
+      this.elements.chatInput.focus();
+    }
+  }
+
+  hideChat() {
+    if (!this.elements.chatOverlay) return;
+    this.elements.chatOverlay.classList.remove('active');
+    if (this.elements.chatInput) {
+      this.elements.chatInput.style.display = 'none';
+      this.elements.chatInput.value = '';
+      this.elements.chatInput.blur();
+    }
+  }
+
+  addChatMessage(name, text, team) {
+    if (!this.elements.chatMessages) return;
+    const msg = document.createElement('div');
+    msg.className = 'chat-message';
+    msg.innerHTML = `<span class="chat-name${team ? ' team-' + team.toLowerCase() : ''}">${name}: </span>${text}`;
+    this.elements.chatMessages.appendChild(msg);
+    this.elements.chatMessages.scrollTop = this.elements.chatMessages.scrollHeight;
+
+    while (this.elements.chatMessages.children.length > 20) {
+      this.elements.chatMessages.removeChild(this.elements.chatMessages.firstChild);
+    }
+  }
+
+  // --- Damage Numbers ---
+  showDamageNumber(screenPos, damage, isHeadshot) {
+    const el = document.createElement('div');
+    el.className = 'damage-number ' + (isHeadshot ? 'damage-headshot' : 'damage-hit');
+    el.textContent = isHeadshot ? `✖${Math.round(damage)}` : Math.round(damage);
+    el.style.left = screenPos.x + 'px';
+    el.style.top = screenPos.y + 'px';
+    document.getElementById('game-hud').appendChild(el);
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 800);
   }
 
   dispose() {

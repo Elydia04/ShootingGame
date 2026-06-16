@@ -76,7 +76,7 @@ export class BotController {
 
     this.reactionTimer = 0;
     this.fireTimer = 0;
-    this.strafeDir = 1;
+    this.strafeDir = Math.random() < 0.5 ? 1 : -1;
     this.strafeTimer = 0;
 
     this.targetPlayer = null;
@@ -396,7 +396,7 @@ export class BotController {
     const targetAngle = Math.atan2(dx, dz);
     this.euler.y += this._angleDiff(this.euler.y, targetAngle) * 5 * deltaTime;
 
-    if (this.strafeTimer > 1.5) {
+    if (this.strafeTimer > 0.8) {
       this.strafeDir = Math.random() < 0.5 ? 1 : -1;
       this.strafeTimer = 0;
     }

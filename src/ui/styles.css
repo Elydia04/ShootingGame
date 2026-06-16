@@ -1006,3 +1006,131 @@ body {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Scoreboard */
+.scoreboard {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85);
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 16px 24px;
+  min-width: 400px;
+  z-index: 200;
+  pointer-events: none;
+}
+.scoreboard-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 2px solid #555;
+  color: #aaa;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+}
+.scoreboard-header span { flex: 1; text-align: center; }
+.scoreboard-header span:first-child { flex: 2; text-align: left; }
+.scoreboard-rows { margin-top: 4px; }
+.scoreboard-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid #333;
+  font-size: 0.9rem;
+}
+.scoreboard-row:last-child { border-bottom: none; }
+.scoreboard-row span { flex: 1; text-align: center; }
+.scoreboard-row span:first-child { flex: 2; text-align: left; }
+.scoreboard-row.local { color: #4a9eff; font-weight: bold; }
+
+/* Death Screen */
+.death-screen {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  z-index: 100;
+  pointer-events: none;
+}
+.death-info {
+  font-size: 1.4rem;
+  font-weight: bold;
+  text-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+  color: #e74c3c;
+  margin-bottom: 8px;
+}
+.death-respawn-timer {
+  font-size: 1rem;
+  color: #aaa;
+  text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+}
+
+/* Chat Overlay */
+.chat-overlay {
+  position: absolute;
+  bottom: 120px;
+  left: 16px;
+  width: 320px;
+  max-height: 200px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.chat-overlay.active {
+  pointer-events: auto;
+}
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+  max-height: 160px;
+}
+.chat-message {
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  border-radius: 3px;
+  animation: fadeIn 0.2s ease;
+  word-break: break-word;
+}
+.chat-message .chat-name { font-weight: bold; }
+.chat-message .chat-name.team-ct { color: #4a9eff; }
+.chat-message .chat-name.team-t { color: #e74c3c; }
+.chat-input {
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid #555;
+  border-radius: 4px;
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  outline: none;
+  display: none;
+}
+.chat-overlay.active .chat-input {
+  display: block;
+}
+.chat-input:focus { border-color: #4a9eff; }
+
+/* Damage Numbers */
+.damage-number {
+  position: absolute;
+  font-weight: bold;
+  pointer-events: none;
+  z-index: 50;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  animation: damageFloat 0.8s ease-out forwards;
+}
+.damage-number.damage-hit { color: #ffaa33; font-size: 1.1rem; }
+.damage-number.damage-headshot { color: #ff4444; font-size: 1.4rem; }
+@keyframes damageFloat {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-40px) scale(1.2); }
+}

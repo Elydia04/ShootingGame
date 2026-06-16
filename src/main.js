@@ -230,7 +230,6 @@ class Game {
       const hit = this._meleeAttack(enemyHitboxes, weapon);
       if (hit) {
         this.ui.hud.showHitMarker(hit.damage);
-        this.core.eventBus.emit('player:damage', { damage: hit.damage, region: hit.region });
         this._showImpactEffect(hit.point, direction.clone().negate(), true);
         this.systems.audioManager.playAtPosition('hit', hit.point, 'HIT');
       }
@@ -272,7 +271,6 @@ class Game {
             }
 
             this.ui.hud.showHitMarker(finalDamage);
-            this.core.eventBus.emit('player:damage', { damage: finalDamage, region: hitData.region });
             this._showImpactEffect(hitData.point, new THREE.Vector3(0, 1, 0), true);
             this.systems.audioManager.playAtPosition('hit', bot.position, 'HIT');
           }
@@ -369,6 +367,10 @@ class Game {
       }, 2000);
       this._botRespawnTimers.push(timerId);
     }
+  }
+
+  _addChatMessage(name, text, team) {
+    this.ui.hud.addChatMessage(name, text, team);
   }
 
   _setupMultiplayer() {
@@ -587,6 +589,22 @@ class Game {
     this.core.gameStateManager.transitionTo(States.MATCH_END, { mode: 'multi', ...data });
   }
 
+  _setupChatInput() {
+    const input = document.getElementById('chat-input');
+    if (!input) return;
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim()) {
+        const msg = input.value.trim();
+        input.value = '';
+        this.ui.hud.addChatMessage('You', msg);
+        this.ui.hud.hideChat();
+      }
+      if (e.key === 'Escape') {
+        this.ui.hud.hideChat();
+      }
+    });
+  }
+
   _startSoloGame(config) {
     this.gameMode = 'solo';
     this.playerHealth = this.playerMaxHealth;
@@ -623,7 +641,7 @@ class Game {
 
     this.systems.matchManager.configure({
       type: 'deathmatch',
-      scoreLimit: 50,
+      scoreLimit: 999999,
       timeLimit: 600,
       teamMode: false,
       respawnTime: 2
@@ -986,6 +1004,14 @@ class Game {
     }
   }
 
+  _showDamageNumber(worldPos, damage, isHeadshot) {
+    const vec = worldPos.clone ? worldPos.clone() : new THREE.Vector3(worldPos.x, worldPos.y, worldPos.z);
+    vec.project(this.player.camera);
+    const x = (vec.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-vec.y * 0.5 + 0.5) * window.innerHeight;
+    this.ui.hud.showDamageNumber({ x, y }, damage, isHeadshot);
+  }
+
   _playerDied() {
     this.playerAlive = false;
     this.player.controller.velocity.set(0, 0, 0);
@@ -993,7 +1019,7 @@ class Game {
 
     const bot = this.bots.find(b => b.alive);
     if (bot) {
-      this.systems.matchManager.registerKill(bot.id, 'local', 'rifle');
+      this.systems.matchManager.registerKill(bot.id, 'local', 'rifle', hitResult.region);
     }
 
     this._respawnTimer = setTimeout(() => {
@@ -1034,6 +1060,16 @@ class Game {
       this.scene.add(mesh);
       this.impactParticles.push({ mesh, velocity: spread, life: 0.4 + Math.random() * 0.3 });
     }
+  }
+
+  _updateScoreboardData() {
+    const rows = [];
+    const localStats = this.systems.matchManager.getPlayerStats('local');
+    rows.push({ name: 'You', kills: localStats?.kills || 0, deaths: localStats?.deaths || 0, score: localStats?.score || 0, ping: '-', local: true });
+    for (const bot of this.bots) {
+      rows.push({ name: bot.name, kills: bot.kills || 0, deaths: bot.deaths || 0, score: bot.kills * 100 || 0, ping: '-', local: false });
+    }
+    this._scoreboardData = rows;
   }
 
   _updateNetwork(deltaTime) {

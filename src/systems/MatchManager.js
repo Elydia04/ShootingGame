@@ -141,7 +141,7 @@ export class MatchManager {
     this.playerStats.delete(id);
   }
 
-  registerKill(killerId, victimId, weapon = 'unknown') {
+  registerKill(killerId, victimId, weapon = 'unknown', region = null) {
     const killer = this.playerStats.get(killerId);
     const victim = this.playerStats.get(victimId);
 

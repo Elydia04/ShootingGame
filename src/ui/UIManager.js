@@ -26,7 +26,7 @@ export class UIManager {
     this.soloConfig = {
       map: 'training_map',
       difficulty: 'medium',
-      botCount: 3
+      botCount: 10
     };
 
     this.multiLobby = {
