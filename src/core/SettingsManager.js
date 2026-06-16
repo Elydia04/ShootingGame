@@ -24,6 +24,7 @@ const DEFAULTS = {
       switchWeapon1: 'Digit1',
       switchWeapon2: 'Digit2',
       switchWeapon3: 'Digit3',
+      switchWeapon4: 'Digit4',
       debug: 'F3',
       scoreboard: 'Tab'
     }

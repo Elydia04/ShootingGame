@@ -3,7 +3,8 @@ export const WeaponType = Object.freeze({
   RIFLE: 'Rifle',
   SMG: 'SMG',
   SHOTGUN: 'Shotgun',
-  SNIPER: 'Sniper'
+  SNIPER: 'Sniper',
+  KNIFE: 'Knife'
 });
 
 const WEAPON_DEFS = {
@@ -67,6 +68,19 @@ const WEAPON_DEFS = {
     recoil: 0.15,
     range: 200,
     automatic: false
+  },
+  [WeaponType.KNIFE]: {
+    name: 'Knife',
+    damage: 35,
+    fireRate: 0.3,
+    magSize: 99999,
+    reserve: 99999,
+    reloadTime: 0,
+    spread: 0,
+    recoil: 0.05,
+    range: 2.5,
+    automatic: false,
+    melee: true
   }
 };
 
@@ -87,6 +101,7 @@ export class Weapon {
     this.range = def.range;
     this.automatic = def.automatic;
     this.pellets = def.pellets || 1;
+    this.melee = def.melee || false;
 
     this.currentAmmo = def.magSize;
     this.reserveAmmo = def.reserve;
@@ -105,7 +120,7 @@ export class Weapon {
     if (!this.canFire(currentTime)) return null;
 
     this.lastFireTime = currentTime;
-    this.currentAmmo--;
+    if (!this.melee) this.currentAmmo--;
 
     const shots = [];
     for (let i = 0; i < this.pellets; i++) {
@@ -116,7 +131,7 @@ export class Weapon {
       });
     }
 
-    if (this.currentAmmo <= 0 && this.reserveAmmo > 0) {
+    if (!this.melee && this.currentAmmo <= 0 && this.reserveAmmo > 0) {
       this.startReload();
     }
 

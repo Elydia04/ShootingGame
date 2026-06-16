@@ -7,10 +7,11 @@ const MAPS = [
 ];
 
 export class UIManager {
-  constructor(gameStateManager, settingsManager, eventBus) {
+  constructor(gameStateManager, settingsManager, eventBus, requestPointerLock) {
     this.gsm = gameStateManager;
     this.settings = settingsManager;
     this.eventBus = eventBus;
+    this._requestPointerLock = requestPointerLock;
 
     this.screens = {
       loading: document.getElementById('loading-screen'),
@@ -72,6 +73,7 @@ export class UIManager {
       this.soloConfig.difficulty = document.querySelector('.diff-btn.active')?.dataset.diff || 'medium';
       this.soloConfig.botCount = parseInt(document.getElementById('bot-count-slider')?.value || 3);
       this.gsm.transitionTo(States.PLAYING, { mode: 'solo', ...this.soloConfig });
+      this._requestPointerLock();
     });
 
     document.getElementById('btn-back-solo')?.addEventListener('click', () => {
@@ -149,6 +151,10 @@ export class UIManager {
 
     document.getElementById('btn-leave-lobby')?.addEventListener('click', () => {
       this.gsm.transitionTo(States.MAIN_MENU);
+    });
+
+    document.getElementById('btn-start-game')?.addEventListener('click', () => {
+      this.eventBus.emit('lobby:start');
     });
   }
 

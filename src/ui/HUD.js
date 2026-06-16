@@ -238,6 +238,12 @@ export class HUD {
     this.elements.crosshair.style.setProperty('--gap', `${gap}px`);
   }
 
+  setCrosshairVisible(visible) {
+    if (this.elements.crosshair) {
+      this.elements.crosshair.style.display = visible ? '' : 'none';
+    }
+  }
+
   showSlowIndicator() {
     if (!this.elements.slowIndicator) return;
 

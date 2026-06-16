@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TreeGenerator } from './TreeGenerator.js';
 import { BuildingGenerator } from './BuildingGenerator.js';
+import { TextureGenerator } from '../utils/TextureGenerator.js';
 
 export class MapManager {
   constructor(scene) {
@@ -95,14 +96,16 @@ export class MapManager {
 
   _createGround(config) {
     const size = config.size || 200;
-    const color = config.color || 0x3a3a3a;
+    const color = config.color || 0xffffff;
     const y = config.y || 0;
 
     const geometry = new THREE.PlaneGeometry(size, size);
+    const grassTex = TextureGenerator.createGrassTexture();
     const material = new THREE.MeshStandardMaterial({
+      map: grassTex,
       color,
-      roughness: 0.8,
-      metalness: 0.1
+      roughness: 0.9,
+      metalness: 0
     });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.rotation.x = -Math.PI / 2;

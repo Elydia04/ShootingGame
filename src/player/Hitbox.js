@@ -131,6 +131,21 @@ export class Hitbox {
     this.group.visible = this.visible || enabled;
   }
 
+  getRegions() {
+    const out = [];
+    for (const [region, data] of this.regions) {
+      const mult = HITBOX_MULTIPLIERS[region];
+      if (data.meshes) {
+        for (const m of data.meshes) {
+          out.push({ mesh: m, name: region, multiplier: mult });
+        }
+      } else {
+        out.push({ mesh: data.mesh, name: region, multiplier: mult });
+      }
+    }
+    return out;
+  }
+
   testRay(raycaster) {
     const results = [];
 

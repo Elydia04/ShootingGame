@@ -1,0 +1,13 @@
+app = "shooting-game"
+primaryRegion = "iad"
+consoleCommand = ""
+buildCommand = "cd server && npm install && cd .. && npm install && npm run build"
+startCommand = "node server/index.js"
+
+[env]
+  PORT = "3001"
+
+[http_service]
+  internalPort = 3001
+  forceHttps = true
+  healthCheckPath = "/health"

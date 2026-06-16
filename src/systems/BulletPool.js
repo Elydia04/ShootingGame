@@ -90,14 +90,15 @@ export class BulletPool {
   _createBullet() {
     const bullet = new Bullet();
 
-    const len = 1.2;
+    const len = 2.5;
     const tracerGeo = new THREE.BufferGeometry();
     const tracerVerts = new Float32Array([0, 0, 0, 0, 0, -len]);
     tracerGeo.setAttribute('position', new THREE.BufferAttribute(tracerVerts, 3));
     const tracerMat = new THREE.LineBasicMaterial({
-      color: 0x44ffcc,
+      color: 0x88ffdd,
       transparent: true,
-      opacity: 0.9
+      opacity: 1.0,
+      linewidth: 2
     });
     bullet.tracer = new THREE.Line(tracerGeo, tracerMat);
     bullet.tracer.visible = false;

@@ -20,6 +20,13 @@ export class FirstPersonWeapon {
     this.reloadProgress = 0;
     this.isReloading = false;
 
+    this.isEquipping = false;
+    this.equipProgress = 0;
+    this.equipDuration = 0.3;
+
+    this.adsPos = new THREE.Vector3(0, -0.087, -0.2);
+    this.isADS = false;
+
     this.weaponGroup = new THREE.Group();
     this.weaponGroup.scale.set(1.5, 1.5, 1.5);
     this.holder.add(this.weaponGroup);
@@ -29,11 +36,34 @@ export class FirstPersonWeapon {
     this.muzzleFlash = new THREE.PointLight(0xffaa44, 0, 4);
     this.muzzleFlash.position.set(0, 0.02, 0.48);
     this.weaponGroup.add(this.muzzleFlash);
+
+    this._createFlashSprite();
+
     this.flashTimer = 0;
 
     this.reloadDuration = 2.0;
 
     this._resetPose();
+  }
+
+  _createFlashSprite() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    grad.addColorStop(0, 'rgba(255,255,200,1)');
+    grad.addColorStop(0.3, 'rgba(255,200,100,0.8)');
+    grad.addColorStop(0.7, 'rgba(255,100,20,0.3)');
+    grad.addColorStop(1, 'rgba(255,50,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 32, 32);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending });
+    this.flashSprite = new THREE.Sprite(mat);
+    this.flashSprite.scale.set(0.15, 0.15, 1);
+    this.flashSprite.position.set(0, 0.02, 0.5);
+    this.weaponGroup.add(this.flashSprite);
   }
 
   _buildM4A1() {
@@ -65,12 +95,6 @@ export class FirstPersonWeapon {
     this.stock.position.set(0, -0.01, -0.28);
     this.weaponGroup.add(this.stock);
 
-    const sightGeo = new THREE.BoxGeometry(0.01, 0.03, 0.02);
-    const sightMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.5, emissive: 0x333333, emissiveIntensity: 0.15 });
-    this.sight = new THREE.Mesh(sightGeo, sightMat);
-    this.sight.position.set(0, 0.05, 0.1);
-    this.weaponGroup.add(this.sight);
-
     const handguardGeo = new THREE.BoxGeometry(0.03, 0.03, 0.12);
     const handguardMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.6, emissive: 0x444444, emissiveIntensity: 0.15 });
     this.handguard = new THREE.Mesh(handguardGeo, handguardMat);
@@ -83,6 +107,19 @@ export class FirstPersonWeapon {
     this.grip.position.set(0.01, -0.04, 0.0);
     this.grip.rotation.x = 0.1;
     this.weaponGroup.add(this.grip);
+
+    // Red dot sight (rifle)
+    const rdMount = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.006, 0.015), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.4 }));
+    rdMount.position.set(-0.005, 0.048, 0.04);
+    this.weaponGroup.add(rdMount);
+    const rdGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x4466aa, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.0, emissive: 0x224488, emissiveIntensity: 0.1 });
+    const rdGlass = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.018, 0.002), rdGlassMat);
+    rdGlass.position.set(-0.005, 0.058, 0.05);
+    this.weaponGroup.add(rdGlass);
+    const rdDotMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 3 });
+    const rdDot = new THREE.Mesh(new THREE.SphereGeometry(0.003, 6, 6), rdDotMat);
+    rdDot.position.set(-0.005, 0.058, 0.049);
+    this.weaponGroup.add(rdDot);
   }
 
   _resetPose() {
@@ -100,8 +137,8 @@ export class FirstPersonWeapon {
     this.shootKick = 0.04;
     this.recoil = Math.min(this.recoil + 0.025, this.maxRecoil);
     this.recoilSide += (Math.random() - 0.5) * 0.02;
-    this.flashTimer = 0.05;
-    this.muzzleFlash.intensity = 2;
+    this.flashTimer = 0.08;
+    this.muzzleFlash.intensity = 5;
   }
 
   playReload(duration = 2.0) {
@@ -110,8 +147,30 @@ export class FirstPersonWeapon {
     this.reloadDuration = duration;
   }
 
-  update(deltaTime, isMoving, isSprinting, weapon, animState) {
+  update(deltaTime, isMoving, isSprinting, weapon, animState, isADS = false) {
     const dt = Math.min(deltaTime, 0.05);
+    this.isADS = isADS;
+
+    if (this.isEquipping) {
+      this.equipProgress += dt;
+      const t = Math.min(this.equipProgress / this.equipDuration, 1);
+      const ease = 1 - Math.pow(1 - t, 3);
+      this.weaponGroup.position.set(
+        this.restPos.x * ease,
+        (this.restPos.y - 0.5) * (1 - ease) + this.restPos.y * ease,
+        (this.restPos.z + 0.3) * (1 - ease) + this.restPos.z * ease
+      );
+      this.weaponGroup.rotation.set(
+        this.restRot.x * ease,
+        this.restRot.y * ease,
+        this.restRot.z * ease
+      );
+      if (t >= 1) {
+        this.isEquipping = false;
+        this._resetPose();
+      }
+      return;
+    }
 
     if (this.isReloading) {
       this.reloadProgress += dt;
@@ -135,9 +194,11 @@ export class FirstPersonWeapon {
 
     this._updateBob(dt, isMoving, isSprinting);
 
-    const targetPos = this.restPos.clone();
-    targetPos.y += this.shootKick * 0.5;
-    targetPos.x += this.recoilSide * 1.5;
+    const targetPos = this.isADS ? this.adsPos.clone() : this.restPos.clone();
+    if (!this.isADS) {
+      targetPos.y += this.shootKick * 0.5;
+      targetPos.x += this.recoilSide * 1.5;
+    }
 
     if (this.isReloading) {
       const p = this.reloadProgress / this.reloadDuration;
@@ -150,8 +211,10 @@ export class FirstPersonWeapon {
       }
     }
 
-    targetPos.x += this.bobTarget.x;
-    targetPos.y += this.bobTarget.y;
+    if (!this.isADS) {
+      targetPos.x += this.bobTarget.x;
+      targetPos.y += this.bobTarget.y;
+    }
 
     this.weaponGroup.position.lerp(targetPos, 10 * dt);
 
@@ -168,6 +231,12 @@ export class FirstPersonWeapon {
       this.flashTimer -= dt;
       if (this.flashTimer <= 0) {
         this.muzzleFlash.intensity = 0;
+        if (this.flashSprite) this.flashSprite.material.opacity = 0;
+      } else {
+        if (this.flashSprite) {
+          this.flashSprite.material.opacity = this.flashTimer / 0.08;
+          this.flashSprite.scale.setScalar(0.15 + (1 - this.flashTimer / 0.08) * 0.1);
+        }
       }
     }
   }
@@ -204,6 +273,7 @@ export class FirstPersonWeapon {
       case 'SMG': this._buildSMG(); break;
       case 'Shotgun': this._buildShotgun(); break;
       case 'Sniper': this._buildSniper(); break;
+      case 'Knife': this._buildKnife(); break;
       default: this._buildM4A1(); break;
     }
 
@@ -212,7 +282,12 @@ export class FirstPersonWeapon {
     this.weaponGroup.add(this.muzzleFlash);
     this.flashTimer = 0;
 
+    this._createFlashSprite();
+
     this._resetPose();
+
+    this.isEquipping = true;
+    this.equipProgress = 0;
   }
 
   _buildPistol() {
@@ -275,6 +350,19 @@ export class FirstPersonWeapon {
     const stock = new THREE.Mesh(stockGeo, stockMat);
     stock.position.set(0, -0.01, -0.18);
     this.weaponGroup.add(stock);
+
+    // Red dot sight (SMG)
+    const rdMount = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.005, 0.012), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.4 }));
+    rdMount.position.set(-0.004, 0.035, 0.05);
+    this.weaponGroup.add(rdMount);
+    const rdGlassMat = new THREE.MeshPhysicalMaterial({ color: 0x4466aa, transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.0, emissive: 0x224488, emissiveIntensity: 0.1 });
+    const rdGlass = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.014, 0.002), rdGlassMat);
+    rdGlass.position.set(-0.004, 0.042, 0.06);
+    this.weaponGroup.add(rdGlass);
+    const rdDotMat = new THREE.MeshStandardMaterial({ color: 0xff2200, emissive: 0xff2200, emissiveIntensity: 3 });
+    const rdDot = new THREE.Mesh(new THREE.SphereGeometry(0.0025, 6, 6), rdDotMat);
+    rdDot.position.set(-0.004, 0.042, 0.059);
+    this.weaponGroup.add(rdDot);
   }
 
   _buildShotgun() {
@@ -336,6 +424,50 @@ export class FirstPersonWeapon {
     const mag = new THREE.Mesh(magGeo, magMat);
     mag.position.set(0, -0.04, -0.05);
     this.weaponGroup.add(mag);
+  }
+
+  _buildKnife() {
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.8, roughness: 0.2, emissive: 0x333333, emissiveIntensity: 0.1 });
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.5 });
+    const gripMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
+
+    // Blade
+    const bladeGeo = new THREE.BoxGeometry(0.015, 0.002, 0.12);
+    const blade = new THREE.Mesh(bladeGeo, metalMat);
+    blade.position.set(0, 0, 0.08);
+    this.weaponGroup.add(blade);
+
+    // Blade tip (triangle approximation)
+    const tipGeo = new THREE.ConeGeometry(0.008, 0.04, 4);
+    const tip = new THREE.Mesh(tipGeo, metalMat);
+    tip.rotation.x = Math.PI / 2;
+    tip.position.set(0, 0.001, 0.15);
+    this.weaponGroup.add(tip);
+
+    // Guard
+    const guardGeo = new THREE.BoxGeometry(0.045, 0.005, 0.008);
+    const guard = new THREE.Mesh(guardGeo, darkMat);
+    guard.position.set(0, 0, 0.02);
+    this.weaponGroup.add(guard);
+
+    // Handle
+    const handleGeo = new THREE.BoxGeometry(0.025, 0.025, 0.055);
+    const handle = new THREE.Mesh(handleGeo, gripMat);
+    handle.position.set(0, 0, -0.02);
+    this.weaponGroup.add(handle);
+
+    // Handle wrap rings
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+    for (let i = 0; i < 3; i++) {
+      const ring = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.028, 0.005), ringMat);
+      ring.position.set(0, 0, -0.025 - i * 0.018);
+      this.weaponGroup.add(ring);
+    }
+
+    // Pommel
+    const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 6), darkMat);
+    pommel.position.set(0, 0, -0.05);
+    this.weaponGroup.add(pommel);
   }
 
   getMuzzlePosition() {

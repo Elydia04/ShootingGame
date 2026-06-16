@@ -15,7 +15,7 @@ const MOVEMENT = {
   crouchTransitionSpeed: 8.0,
   gravity: -20.0,
   maxFallSpeed: -30.0,
-  groundFriction: 6.0,
+  groundFriction: 50.0,
   slopeLimit: 0.8
 };
 
@@ -23,9 +23,9 @@ const CAMERA = {
   normalHeight: 1.6,
   crouchHeight: 0.6,
   bobFrequency: 10.0,
-  bobAmplitude: 0.04,
-  sprintBobMultiplier: 1.6,
-  crouchBobMultiplier: 0.4,
+  bobAmplitude: 0.07,
+  sprintBobMultiplier: 2.0,
+  crouchBobMultiplier: 0.3,
   landImpact: 0.1,
   fov: 75,
   sprintFovAdd: 5,
@@ -98,6 +98,7 @@ export class PlayerController {
 
     this._collidables = [];
     this._playerRadius = 0.4;
+    this._stepHeight = 0.35;
   }
 
   get forward() {
@@ -353,6 +354,9 @@ export class PlayerController {
 
   _resolveCollision() {
     const r = this._playerRadius;
+    const step = this._stepHeight;
+    const playerTop = this.position.y + this.height * 0.5;
+    const playerBottom = this.position.y - this.height * 0.5;
 
     for (const obj of this._collidables) {
       if (!obj.geometry) continue;
@@ -360,6 +364,10 @@ export class PlayerController {
       if (!geo.boundingBox) geo.computeBoundingBox();
       obj.updateWorldMatrix(true, false);
       const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
+
+      if (playerBottom > worldBox.max.y || playerTop < worldBox.min.y) continue;
+
+      if (playerBottom >= worldBox.max.y) continue;
 
       const cx = this.position.x;
       const cz = this.position.z;
@@ -370,6 +378,13 @@ export class PlayerController {
       const distSq = dx * dx + dz * dz;
 
       if (distSq < r * r && distSq > 0.0001) {
+        const stepUpHeight = worldBox.max.y - playerBottom;
+        if (stepUpHeight > 0 && stepUpHeight <= step) {
+          this.position.y += stepUpHeight;
+          this.velocity.y = 0;
+          continue;
+        }
+
         const dist = Math.sqrt(distSq);
         const overlap = r - dist;
         const nx = dx / dist;
@@ -384,8 +399,43 @@ export class PlayerController {
 
   _checkGroundState(dt) {
     this.wasGrounded = this.grounded;
+    const halfH = this.height * 0.5;
+    const feetY = this.position.y - halfH;
 
-    if (this.velocity.y <= 0 && this.position.y <= this.height * 0.5 + 0.01) {
+    let groundY = null;
+
+    if (this.velocity.y <= 0 && this.position.y <= halfH + 0.01) {
+      groundY = 0;
+    }
+
+    if (this.velocity.y <= 0 && groundY === null) {
+      const r = this._playerRadius;
+      for (const obj of this._collidables) {
+        if (!obj.geometry) continue;
+        const geo = obj.geometry;
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        obj.updateWorldMatrix(true, false);
+        const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
+
+        if (feetY > worldBox.max.y || this.position.y + halfH < worldBox.min.y) continue;
+
+        const cx = this.position.x;
+        const cz = this.position.z;
+        const closestX = Math.max(worldBox.min.x, Math.min(cx, worldBox.max.x));
+        const closestZ = Math.max(worldBox.min.z, Math.min(cz, worldBox.max.z));
+        const dx = cx - closestX;
+        const dz = cz - closestZ;
+        if (dx * dx + dz * dz < r * r) {
+          const surfaceY = worldBox.max.y;
+          if (feetY >= surfaceY - 0.1 && feetY <= surfaceY + 0.05) {
+            groundY = surfaceY;
+            break;
+          }
+        }
+      }
+    }
+
+    if (groundY !== null) {
       if (!this.grounded) {
         const fallDist = this._lastGroundPos.y - this.position.y;
         if (fallDist > 0.5) {
@@ -399,7 +449,7 @@ export class PlayerController {
         }
       }
       this.grounded = true;
-      this.position.y = this.height * 0.5;
+      this.position.y = groundY + halfH;
       if (this.velocity.y < 0) {
         this.velocity.y = 0;
       }
@@ -474,10 +524,12 @@ export class PlayerController {
 
     this.camera.quaternion.copy(this.quaternion);
 
-    if (this.isSprinting) {
+    const adsFov = CAMERA.fov * 0.53;
+    const targetFov = this.inputs.aim ? adsFov : CAMERA.fov;
+    if (this.isSprinting && !this.inputs.aim) {
       this.camera.fov += (CAMERA.fov + CAMERA.sprintFovAdd - this.camera.fov) * 0.1;
     } else {
-      this.camera.fov += (CAMERA.fov - this.camera.fov) * 0.1;
+      this.camera.fov += (targetFov - this.camera.fov) * 0.1;
     }
     this.camera.updateProjectionMatrix();
 

@@ -20,12 +20,16 @@ import { WeaponManager, WeaponType } from './systems/WeaponManager.js';
 import { BotController } from './systems/BotController.js';
 import { NetworkManager } from './network/NetworkManager.js';
 import { InterpolationManager } from './network/InterpolationManager.js';
+import { RemotePlayer } from './player/RemotePlayer.js';
 import { UIManager } from './ui/UIManager.js';
 import { HUD } from './ui/HUD.js';
 import { SettingsMenu } from './ui/SettingsMenu.js';
 import { forestMap } from '../maps/forest_map/index.js';
 import { cityMap } from '../maps/city_map/index.js';
 import { trainingMap } from '../maps/training_map/index.js';
+import { PauseManager } from './systems/PauseManager.js';
+import { InputManager } from './systems/InputManager.js';
+import { ErrorOverlay } from './systems/ErrorOverlay.js';
 
 class Game {
   constructor() {
@@ -42,6 +46,7 @@ class Game {
     this.network = {};
 
     this.bots = [];
+    this.remotePlayers = [];
     this.gameMode = 'solo';
     this.playerHealth = 100;
     this.playerMaxHealth = 100;
@@ -54,79 +59,9 @@ class Game {
     this._errorCount = 0;
     this.paused = false;
 
-    this._setupGlobalErrorHandler();
-    this._setupPauseMenu();
-  }
-
-  _setupGlobalErrorHandler() {
-    const overlay = document.createElement('div');
-    overlay.id = 'error-overlay';
-    overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);color:#ff4444;font-family:monospace;font-size:14px;padding:20px;z-index:9999;overflow:auto;white-space:pre-wrap;pointer-events:none';
-    document.body.appendChild(overlay);
-
-    const showError = (msg, source, line, col, err) => {
-      this._errorCount++;
-      if (this._errorCount > 20) return;
-      overlay.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n  at ${source || '?'}:${line || '?'}:${col || '?'}\n${err?.stack || ''}\n\n`;
-      overlay.style.display = 'block';
-      console.error(`[Game Crashed]`, msg, source, line, col, err);
-    };
-
-    window.addEventListener('error', (e) => {
-      e.preventDefault();
-      showError(e.message, e.filename, e.lineno, e.colno, e.error);
-    });
-
-    window.addEventListener('unhandledrejection', (e) => {
-      e.preventDefault();
-      const err = e.reason;
-      showError(err?.message || String(err), '', '', '', err instanceof Error ? err : null);
-    });
-  }
-
-  _setupPauseMenu() {
-    this._pauseOverlay = document.createElement('div');
-    this._pauseOverlay.id = 'pause-menu';
-    this._pauseOverlay.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:9997;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif';
-    this._pauseOverlay.innerHTML = `
-      <h2 style="color:#fff;font-size:48px;margin-bottom:50px;text-shadow:0 2px 10px rgba(0,0,0,0.5)">PAUSED</h2>
-      <button id="pause-continue" style="display:block;width:260px;padding:14px 0;margin:8px;font-size:20px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;cursor:pointer">Continue</button>
-      <button id="pause-settings" style="display:block;width:260px;padding:14px 0;margin:8px;font-size:20px;background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:6px;cursor:pointer">Settings</button>
-      <button id="pause-quit" style="display:block;width:260px;padding:14px 0;margin:8px;font-size:20px;background:rgba(255,255,255,0.15);color:#ff6666;border:1px solid rgba(255,100,100,0.3);border-radius:6px;cursor:pointer">Quit Game</button>
-    `;
-    document.body.appendChild(this._pauseOverlay);
-
-    document.getElementById('pause-continue').addEventListener('click', () => this._resumeGame());
-    document.getElementById('pause-settings').addEventListener('click', () => {
-      this.ui.settingsMenu?.show();
-    });
-    document.getElementById('pause-quit').addEventListener('click', () => {
-      this._resumeGame();
-      this.core.gameStateManager.transitionTo(States.MAIN_MENU);
-    });
-  }
-
-  _requestPointerLock() {
-    try {
-      this.renderer.domElement.requestPointerLock();
-    } catch (e) {
-      // Browser may reject if called too soon after exitPointerLock
-    }
-  }
-
-  _resumeGame() {
-    this._pauseOverlay.style.display = 'none';
-    this.paused = false;
-    if (this.core.gameStateManager.is(States.PLAYING)) {
-      this._requestPointerLock();
-    }
-  }
-
-  _pauseGame() {
-    this.paused = true;
-    document.exitPointerLock();
-    document.getElementById('pause-continue')?.focus();
-    this._pauseOverlay.style.display = 'flex';
+    this.errorOverlay = new ErrorOverlay();
+    this.inputManager = null;
+    this.pauseManager = null;
   }
 
   async init() {
@@ -138,16 +73,16 @@ class Game {
     this.core.gameStateManager = new GameStateManager();
     this.core.debugTools = new DebugTools();
 
-    this._setupPointerLock();
-    this._setupKeyboard();
-    this._setupMouse();
-
     this._setupRenderer();
+
+    this.pauseManager = new PauseManager(this);
+    this.errorOverlay = new ErrorOverlay();
 
     this.ui.uiManager = new UIManager(
       this.core.gameStateManager,
       this.core.settingsManager,
-      this.core.eventBus
+      this.core.eventBus,
+      () => this.pauseManager.requestPointerLock()
     );
 
     this.systems.assetManager = new AssetManager(this.scene);
@@ -159,7 +94,6 @@ class Game {
     this.systems.audioManager = new AudioManager(this.core.settingsManager);
     await this.systems.audioManager.init();
 
-    this.systems.assetManager.loadModel('shotgun', '/models/Shotgun18F.glb');
     await this.systems.assetManager.loadAll();
 
     this.systems.mapManager = new MapManager(this.scene);
@@ -168,7 +102,6 @@ class Game {
     this.systems.mapManager.registerMap('training_map', trainingMap);
 
     this.systems.spawnManager = new SpawnManager();
-
     this.systems.animationManager = new AnimationManager();
 
     this.systems.bulletPool = new BulletPool(this.scene);
@@ -184,6 +117,7 @@ class Game {
     this.systems.weaponManager.addWeapon(WeaponType.RIFLE);
     this.systems.weaponManager.addWeapon(WeaponType.PISTOL);
     this.systems.weaponManager.addWeapon(WeaponType.SMG);
+    this.systems.weaponManager.addWeapon(WeaponType.KNIFE);
 
     this.player.camera = new THREE.PerspectiveCamera(
       this.core.settingsManager.get('graphics', 'fov'),
@@ -217,7 +151,10 @@ class Game {
 
     this.ui.settingsMenu = new SettingsMenu(this.core.settingsManager);
 
+    this.inputManager = new InputManager(this);
+
     this._setupStateListeners();
+    this._setupMultiplayer();
     this._setupDebugToggle();
     this._setupSettingsOpen();
     this._setupResize();
@@ -251,130 +188,10 @@ class Game {
     this.scene.add(hemi);
   }
 
-  _setupPointerLock() {
-    document.addEventListener('click', (e) => {
-      if (this.core.gameStateManager.is(States.PLAYING) && e.target === this.renderer.domElement) {
-        this._requestPointerLock();
-      }
-    });
-
-    document.addEventListener('pointerlockchange', () => {
-      const locked = document.pointerLockElement === this.renderer.domElement;
-      if (this.player.controller) {
-        this.player.controller.isPointerLocked = locked;
-      }
-    });
-  }
-
-  _setupKeyboard() {
-    this._keys = new Set();
-
-    document.addEventListener('keydown', (e) => {
-      if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault();
-      this._keys.add(e.code);
-
-      if (e.code === this.core.settingsManager.getKeybind('debug')) {
-        this.core.debugTools.toggle();
-        this.player.hitbox.setDebugMode(this.core.debugTools.enabled);
-        this.bots.forEach(b => b.hitbox.setDebugMode(this.core.debugTools.enabled));
-      }
-
-      if (e.code === 'Escape') {
-        if (this.paused) {
-          this._resumeGame();
-        } else if (this.core.gameStateManager.is(States.PLAYING)) {
-          this._pauseGame();
-        } else {
-          document.exitPointerLock();
-        }
-      }
-
-      if (e.code === 'AltLeft' || e.code === 'AltRight') {
-        e.preventDefault();
-        if (document.pointerLockElement === this.renderer.domElement) {
-          document.exitPointerLock();
-        } else if (this.core.gameStateManager.is(States.PLAYING)) {
-          this._requestPointerLock();
-        }
-      }
-
-      if (e.code === this.core.settingsManager.getKeybind('reload')) {
-        if (this.systems.weaponManager) {
-          this.systems.weaponManager.reload();
-          const weapon = this.systems.weaponManager.getCurrentWeapon();
-          this.player.firstPersonWeapon.playReload(weapon ? weapon.reloadTime : 2.0);
-          this.systems.audioManager.play('reload', 'WEAPON');
-        }
-      }
-
-      if (e.code === 'KeyV' && this.core.gameStateManager.is(States.PLAYING)) {
-        const view = this.player.cameraSystem.toggleView();
-        this.cameraView = view;
-        this.ui.hud?.updateViewToggleLabel(view === CameraView.FIRST_PERSON);
-        if (view === CameraView.THIRD_PERSON) {
-          this.player.controller.cameraActive = false;
-        } else {
-          this.player.controller.cameraActive = true;
-        }
-      }
-
-      const weaponKeys = [
-        this.core.settingsManager.getKeybind('switchWeapon1'),
-        this.core.settingsManager.getKeybind('switchWeapon2'),
-        this.core.settingsManager.getKeybind('switchWeapon3')
-      ];
-      const idx = weaponKeys.indexOf(e.code);
-      if (idx !== -1 && this.systems.weaponManager) {
-        this.systems.weaponManager.switchTo(idx);
-      }
-    });
-
-    document.addEventListener('keyup', (e) => {
-      this._keys.delete(e.code);
-    });
-
-    document.addEventListener('blur', () => {
-      this._keys.clear();
-    });
-  }
-
-  _syncInputs() {
-    if (!this.player.controller) return;
-    const c = this.player.controller;
-    const k = this._keys;
-    c.inputs.forward = k.has('KeyW');
-    c.inputs.backward = k.has('KeyS');
-    c.inputs.left = k.has('KeyA');
-    c.inputs.right = k.has('KeyD');
-    c.inputs.jump = k.has('Space');
-    c.inputs.sprint = k.has('ShiftLeft') || k.has('ShiftRight');
-    c.inputs.crouch = k.has('ControlLeft') || k.has('ControlRight');
-    c.inputs.reload = k.has('KeyR');
-    c.inputs.shoot = k.has('Mouse0');
-    c.inputs.aim = k.has('Mouse2');
-  }
-
-  _setupMouse() {
-    document.addEventListener('mousemove', (e) => {
-      if (this.player.controller) {
-        this.player.controller.handleMouseMove(e);
-      }
-    });
-
-    document.addEventListener('mousedown', (e) => {
-      this._keys.add(`Mouse${e.button}`);
-
-      if (e.button === 0 && this.core.gameStateManager.is(States.PLAYING) && this.playerAlive) {
-        const weapon = this.systems.weaponManager?.getCurrentWeapon();
-        if (weapon) {
-          this._fireWeapon();
-        }
-      }
-    });
-
-    document.addEventListener('mouseup', (e) => {
-      this._keys.delete(`Mouse${e.button}`);
-    });
+  getCollidables() {
+    return this.systems.mapManager.objects.filter(
+      o => o.userData?.isWall || o.userData?.isMapObject || o.userData?.isBoundary
+    );
   }
 
   _fireWeapon() {
@@ -389,13 +206,27 @@ class Game {
     const direction = new THREE.Vector3(0, 0, -1);
     direction.applyQuaternion(camera.quaternion);
 
-    const muzzlePos = this.player.cameraSystem.getMuzzleWorldPosition(
-      this.player.firstPersonWeapon
-    );
-
     const enemyHitboxes = this.bots
       .filter(b => b.alive)
       .map(b => b.hitbox);
+
+    if (weapon.melee) {
+      const hit = this._meleeAttack(enemyHitboxes, weapon);
+      if (hit) {
+        this.ui.hud.showHitMarker(hit.damage);
+        this.core.eventBus.emit('player:damage', { damage: hit.damage, region: hit.region });
+        this._showImpactEffect(hit.point, direction.clone().negate(), true);
+        this.systems.audioManager.playAtPosition('hit', hit.point, 'HIT');
+      }
+      this.player.firstPersonWeapon.playShoot();
+      this.systems.animationManager.playWeapon('shoot');
+      this._playMeleeSound();
+      return;
+    }
+
+    const muzzlePos = this.player.cameraSystem.getMuzzleWorldPosition(
+      this.player.firstPersonWeapon
+    );
 
     for (const shot of result.shots) {
       const spreadDir = direction.clone();
@@ -451,6 +282,48 @@ class Game {
     });
   }
 
+  _meleeAttack(hitboxes, weapon) {
+    const camera = this.player.camera;
+    const origin = camera.position.clone();
+    const direction = new THREE.Vector3(0, 0, -1);
+    direction.applyQuaternion(camera.quaternion);
+
+    const raycaster = new THREE.Raycaster(origin, direction, 0, weapon.range);
+    const meshes = [];
+    const hitboxMap = new Map();
+    for (const hb of hitboxes) {
+      for (const region of hb.getRegions()) {
+        meshes.push(region.mesh);
+        hitboxMap.set(region.mesh, { hitbox: hb, region: region.name, multiplier: region.multiplier });
+      }
+    }
+    if (meshes.length === 0) return null;
+
+    const hits = raycaster.intersectObjects(meshes);
+    if (hits.length > 0 && hits[0].distance <= weapon.range) {
+      const info = hitboxMap.get(hits[0].object);
+      if (info) {
+        const finalDamage = weapon.damage * info.multiplier;
+        const bot = info.hitbox.owner;
+        if (bot && bot.alive) {
+          bot.takeDamage(finalDamage, 'local');
+          this.systems.matchManager.registerDamage('local', bot.id, finalDamage);
+          if (!bot.alive) {
+            this.systems.matchManager.registerKill('local', bot.id, weapon.name);
+            this._respawnBot(bot);
+          }
+        }
+        return { damage: finalDamage, region: info.region, point: hits[0].point };
+      }
+    }
+
+    return null;
+  }
+
+  _playMeleeSound() {
+    this.systems.audioManager.play('knife_swing', 'WEAPON');
+  }
+
   _fireBotWeapon(bot) {
     const direction = new THREE.Vector3()
       .subVectors(this.player.controller.position, bot.position)
@@ -482,6 +355,181 @@ class Game {
     }
   }
 
+  _setupMultiplayer() {
+    const SERVER_URL = `ws://${window.location.hostname}:3001/ws`;
+    let ws = null;
+    this._multiWs = null;
+    this._multiHost = false;
+    this._multiCode = null;
+
+    this.core.eventBus.on('lobby:created', (data) => {
+      ws = new WebSocket(SERVER_URL);
+      this._multiWs = ws;
+      this._multiHost = true;
+      this._multiCode = data.code;
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'create_room', data: { name: 'Player' } }));
+      ws.onmessage = (e) => this._handleMultiMessage(JSON.parse(e.data));
+      ws.onclose = () => { this._multiWs = null; };
+    });
+
+    this.core.eventBus.on('lobby:join', (data) => {
+      ws = new WebSocket(SERVER_URL);
+      this._multiWs = ws;
+      this._multiHost = false;
+      this._multiCode = data.code;
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'join_room', data: { code: data.code, name: 'Player' } }));
+      ws.onmessage = (e) => this._handleMultiMessage(JSON.parse(e.data));
+      ws.onclose = () => { this._multiWs = null; };
+    });
+
+    this.core.eventBus.on('lobby:ready', (isReady) => {
+      if (this._multiWs) {
+        this._multiWs.send(JSON.stringify({ type: 'player_ready', data: { ready: isReady } }));
+      }
+    });
+
+    this.core.eventBus.on('lobby:start', () => {
+      if (this._multiWs && this._multiHost) {
+        this._multiWs.send(JSON.stringify({ type: 'start_game' }));
+      }
+    });
+  }
+
+  _handleMultiMessage(msg) {
+    if (msg.type === 'connected') {
+      this._multiLocalId = msg.data.id;
+      return;
+    }
+
+    switch (msg.type) {
+      case 'room_created':
+      case 'room_joined':
+        this.ui.uiManager.multiLobby.code = msg.data.code;
+        this.ui.uiManager.setMultiLobbyPlayers(msg.data.players);
+        document.getElementById('lobby-code').textContent = msg.data.code;
+        document.getElementById('btn-start-game')?.classList.toggle('hidden', !this._multiHost);
+        break;
+
+      case 'player_joined':
+      case 'player_left':
+      case 'player_ready':
+        this.ui.uiManager.setMultiLobbyPlayers(msg.data.players);
+        break;
+
+      case 'countdown':
+        this.ui.hud?.showCountdown?.(msg.data.time);
+        break;
+
+      case 'game_started':
+        this.core.gameStateManager.transitionTo(States.PLAYING, { mode: 'multi', map: msg.data.mapId });
+        break;
+
+      case 'state':
+        this._applyMultiState(msg.data);
+        break;
+
+      case 'spawn':
+        this._handleMultiSpawn(msg.data);
+        break;
+
+      case 'despawn':
+        this._handleMultiDespawn(msg.data);
+        break;
+
+      case 'shot':
+        this._showMuzzleFlashRemote(msg.data.playerId);
+        break;
+
+      case 'hit':
+        this._showImpactEffect(msg.data.point, { x: 0, y: 1, z: 0 }, true);
+        if (msg.data.victimId === 'local') {
+          this.ui.hud.showDamageVignette?.();
+        }
+        break;
+
+      case 'kill':
+        this.ui.hud?.addKillFeedEntry?.(`${msg.data.killerName} killed ${msg.data.victimName}`);
+        break;
+
+      case 'respawn':
+        this._handleMultiRespawn(msg.data);
+        break;
+
+      case 'match_end':
+        this._endMultiMatch(msg.data);
+        break;
+
+      case 'error':
+        console.error('[Multi]', msg.data.message);
+        break;
+    }
+  }
+
+  _startMultiGame(mapId) {
+    this.gameMode = 'multi';
+    this.playerAlive = true;
+    this.playerHealth = this.playerMaxHealth;
+
+    this.systems.mapManager.loadMap(mapId);
+    this.systems.spawnManager.loadFromMap(this.systems.mapManager.getMapData());
+
+    const spawn = this.systems.spawnManager.getSpawn('player', null, []);
+    if (spawn) {
+      this.player.controller.teleport(spawn.position.x, spawn.position.y, spawn.position.z);
+    }
+
+    this.systems.matchManager.configure({ type: 'deathmatch', scoreLimit: 50, timeLimit: 600, teamMode: false });
+    this.systems.matchManager.registerPlayer('local', 'Player');
+    this.systems.matchManager.start();
+
+    const initialWeapon = this.systems.weaponManager.getCurrentWeapon();
+    if (initialWeapon) {
+      this.player.firstPersonWeapon.switchModel(initialWeapon.type);
+    }
+
+    this.ui.hud.show();
+    this._clearBots();
+    this._clearRemotePlayers();
+  }
+
+  _clearRemotePlayers() {
+    for (const rp of this.remotePlayers) rp.dispose();
+    this.remotePlayers = [];
+  }
+
+  _applyMultiState(data) {
+    if (!data || !data.entities) return;
+
+    const localId = this._multiLocalId;
+    for (const [id, state] of Object.entries(data.entities)) {
+      if (id === localId) continue;
+      let rp = this.remotePlayers.find(p => p.id === id);
+      if (!rp) {
+        rp = new RemotePlayer(this.scene, id, state.name || id);
+        this.remotePlayers.push(rp);
+      }
+      rp.alive = state.alive;
+      rp.update(state, 0.016);
+    }
+
+    const activeIds = new Set(Object.keys(data.entities));
+    for (let i = this.remotePlayers.length - 1; i >= 0; i--) {
+      if (!activeIds.has(this.remotePlayers[i].id)) {
+        this.remotePlayers[i].dispose();
+        this.remotePlayers.splice(i, 1);
+      }
+    }
+  }
+
+  _handleMultiSpawn(data) {}
+  _handleMultiDespawn(data) {}
+  _handleMultiRespawn(data) {}
+  _showMuzzleFlashRemote(playerId) {}
+
+  _endMultiMatch(data) {
+    this.core.gameStateManager.transitionTo(States.MATCH_END, { mode: 'multi', ...data });
+  }
+
   _startSoloGame(config) {
     this.gameMode = 'solo';
     this.playerHealth = this.playerMaxHealth;
@@ -490,15 +538,26 @@ class Game {
     this.systems.mapManager.loadMap(config.map);
     this.systems.spawnManager.loadFromMap(this.systems.mapManager.getMapData());
 
-    const shotgunModel = this.systems.assetManager.getModel('shotgun');
-    if (shotgunModel) {
-      const modelClone = shotgunModel.scene.clone();
-      modelClone.position.set(2, 1.2, 0);
-      modelClone.scale.set(0.5, 0.5, 0.5);
-      modelClone.rotation.x = -0.2;
-      modelClone.rotation.y = 0.5;
-      this.scene.add(modelClone);
-    }
+    // Decorative pistol prop
+    const pistolGroup = new THREE.Group();
+    const pMat = new THREE.MeshStandardMaterial({ color: 0x666666, metalness: 0.4, roughness: 0.5 });
+    const pDark = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.7 });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.025, 0.12), pMat);
+    body.position.set(0, 0, 0);
+    pistolGroup.add(body);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.06, 6), pDark);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.01, 0.08);
+    pistolGroup.add(barrel);
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.025), pDark);
+    grip.position.set(0, -0.03, -0.03);
+    grip.rotation.x = 0.15;
+    pistolGroup.add(grip);
+    pistolGroup.position.set(2, 1.2, 0);
+    pistolGroup.scale.set(0.5, 0.5, 0.5);
+    pistolGroup.rotation.x = -0.2;
+    pistolGroup.rotation.y = 0.5;
+    this.scene.add(pistolGroup);
 
     const playerSpawn = this.systems.spawnManager.getSpawn('player', null, []);
     if (playerSpawn) {
@@ -587,7 +646,7 @@ class Game {
 
   _setupStateListeners() {
     this.core.gameStateManager.on(States.MAIN_MENU, () => {
-      this._resumeGame();
+      this.pauseManager.resume();
       this.systems.audioManager?.stopAll();
       this.ui.hud?.hide();
 
@@ -602,19 +661,21 @@ class Game {
         this.systems.mapManager.unloadMap();
       }
       this._clearBots();
+      this._clearRemotePlayers();
+      if (this._multiWs) { this._multiWs.close(); this._multiWs = null; }
       this.playerHealth = this.playerMaxHealth;
       this.playerAlive = true;
     });
 
     this.core.gameStateManager.on(States.PLAYING, (data) => {
       this.paused = false;
-      this._pauseOverlay.style.display = 'none';
+      this.pauseManager.hideOverlay();
 
       if (data?.data?.mode === 'solo') {
         this._startSoloGame(data.data);
+      } else if (data?.data?.mode === 'multi') {
+        this._startMultiGame(data.data.map);
       }
-
-      this._requestPointerLock();
     });
 
     this.core.gameStateManager.on(States.SPECTATING, () => {
@@ -622,7 +683,7 @@ class Game {
     });
 
     this.core.gameStateManager.on(States.MATCH_END, (data) => {
-      this._resumeGame();
+      this.pauseManager.resume();
       document.exitPointerLock();
       this.ui.hud?.hide();
 
@@ -673,8 +734,8 @@ class Game {
     this.systems.matchManager.update(deltaTime);
     this.systems.weaponManager.update(deltaTime);
 
-    const mapObjects = this.systems.mapManager.objects.filter(o => o.userData?.isWall || o.userData?.isMapObject || o.userData?.isBoundary);
-    this.systems.bulletPool.update(deltaTime, mapObjects);
+    const collidables = this.getCollidables();
+    this.systems.bulletPool.update(deltaTime, collidables);
 
     this.systems.animationManager.update(deltaTime);
 
@@ -699,8 +760,8 @@ class Game {
     if (!this.playerAlive) return;
 
     const dt = Math.min(deltaTime, 0.05);
-    const mapObjects = this.systems.mapManager.objects.filter(o => o.userData?.isWall || o.userData?.isMapObject || o.userData?.isBoundary);
-    this.player.controller.update(dt, mapObjects, (controller) => {
+    const collidables = this.getCollidables();
+    this.player.controller.update(dt, collidables, (controller) => {
       const pos = controller.position;
       if (pos.y < -20) {
         controller.teleport(0, 5, 0);
@@ -730,7 +791,8 @@ class Game {
       this.player.controller.isMoving,
       this.player.controller.isSprinting,
       weapon || null,
-      null
+      null,
+      this.player.controller.inputs.aim
     );
 
     this.player.hitbox.update(
@@ -776,6 +838,7 @@ class Game {
       (this.player.firstPersonWeapon.flashTimer > 0 ? 0.4 : 0)
     );
     this.ui.hud.updateCrosshair(crosshairSpread);
+    this.ui.hud.setCrosshairVisible(!this.player.controller.inputs.aim);
 
     this.footstepTimer -= dt;
     if (isMoving && isGrounded && speed > 1 && this.footstepTimer <= 0) {
@@ -796,7 +859,7 @@ class Game {
     if (!this.core.gameStateManager.is(States.PLAYING)) return;
     if (this.gameMode !== 'solo') return;
 
-    const mapObjects = this.systems.mapManager.objects.filter(o => o.userData?.isWall || o.userData?.isMapObject || o.userData?.isBoundary);
+    const collidables = this.getCollidables();
 
     for (const bot of this.bots) {
       if (!bot.alive) continue;
@@ -805,7 +868,7 @@ class Game {
         deltaTime,
         this.player.controller.position,
         this.playerAlive,
-        mapObjects
+        collidables
       );
 
       if (fireResult && this.playerAlive) {
@@ -917,6 +980,14 @@ class Game {
   }
 
   _updateNetwork(deltaTime) {
+    if (this.gameMode === 'multi' && this._multiWs && this._multiWs.readyState === WebSocket.OPEN) {
+      const inputs = this.player.controller?.inputs;
+      if (inputs) {
+        this._multiWs.send(JSON.stringify({ type: 'input', data: { ...inputs }, time: performance.now() }));
+      }
+      this._multiWs.send(JSON.stringify({ type: 'ping', data: { clientTime: performance.now() } }));
+    }
+
     if (!this.network.networkManager.isConnected()) return;
 
     const inputSnapshot = this.player.controller?.getState() || null;
@@ -946,7 +1017,7 @@ class Game {
         }
       }
 
-      this._syncInputs();
+      this.inputManager.syncInputs();
       this._handleInput();
       this._updatePlayer(rawDelta);
       this._updateBots(rawDelta);
@@ -958,12 +1029,7 @@ class Game {
 
       this.running = true;
     } catch (err) {
-      const overlay = document.getElementById('error-overlay');
-      if (overlay) {
-        overlay.textContent += `[${new Date().toLocaleTimeString()}] LOOP ERROR: ${err.message}\n${err.stack || ''}\n\n`;
-        overlay.style.display = 'block';
-      }
-      console.error('[Game Loop Error]', err);
+      this.errorOverlay.showError(err);
     }
 
     requestAnimationFrame(this._gameLoop);

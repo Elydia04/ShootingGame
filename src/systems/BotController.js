@@ -85,6 +85,10 @@ export class BotController {
     this.grounded = true;
     this.height = 1.8;
     this.camHeight = 1.6;
+    this.jumpCooldown = 0;
+    this.isCrouching = false;
+    this.crouchTimer = 0;
+    this.flankTimer = 0;
 
     this.hitbox = new Hitbox(this, { scale: 0.9 });
     this.scene.add(this.hitbox.group);
@@ -94,6 +98,9 @@ export class BotController {
     this.flankTarget = null;
     this.flankTimer = 0;
 
+    this.walkPhase = 0;
+    this.prevSpeed = 0;
+
     this._createVisual();
   }
 
@@ -102,26 +109,46 @@ export class BotController {
                   this.difficulty === 'medium' ? 0xaaaa44 :
                   0xaa4444;
 
-    const bodyGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.2, 8);
+    const bodyGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8);
     const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
     this.bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
-    this.bodyMesh.position.y = 0.9;
+    this.bodyMesh.position.y = 0.1;
     this.bodyMesh.castShadow = true;
 
     const headGeo = new THREE.SphereGeometry(0.18, 8, 8);
     const headMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.5 });
     this.headMesh = new THREE.Mesh(headGeo, headMat);
-    this.headMesh.position.y = 1.6;
+    this.headMesh.position.y = 0.75;
 
     const weaponGeo = new THREE.BoxGeometry(0.05, 0.05, 0.5);
     const weaponMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.5 });
     this.weaponMesh = new THREE.Mesh(weaponGeo, weaponMat);
-    this.weaponMesh.position.set(0, 0.8, -0.4);
+    this.weaponMesh.position.set(-0.15, 0.0, -0.4);
+
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x445544, roughness: 0.7 });
+    const legGeo = new THREE.BoxGeometry(0.12, 0.45, 0.12);
+    this.leftLeg = new THREE.Mesh(legGeo, legMat);
+    this.leftLeg.position.set(-0.12, -0.675, 0);
+    this.leftLeg.castShadow = true;
+    this.rightLeg = new THREE.Mesh(legGeo, legMat);
+    this.rightLeg.position.set(0.12, -0.675, 0);
+    this.rightLeg.castShadow = true;
+
+    const footMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+    const footGeo = new THREE.BoxGeometry(0.08, 0.06, 0.14);
+    this.leftFoot = new THREE.Mesh(footGeo, footMat);
+    this.leftFoot.position.set(0, -0.225, 0.04);
+    this.leftLeg.add(this.leftFoot);
+    this.rightFoot = new THREE.Mesh(footGeo, footMat);
+    this.rightFoot.position.set(0, -0.225, 0.04);
+    this.rightLeg.add(this.rightFoot);
 
     this.group = new THREE.Group();
     this.group.add(this.bodyMesh);
     this.group.add(this.headMesh);
     this.group.add(this.weaponMesh);
+    this.group.add(this.leftLeg);
+    this.group.add(this.rightLeg);
     this.scene.add(this.group);
   }
 
@@ -209,7 +236,24 @@ export class BotController {
     this._updateState(canSeePlayer, playerPosition, deltaTime);
     this._executeState(deltaTime, playerPosition);
     this._applyMovement(deltaTime);
-    this._applyGravity(deltaTime);
+
+    // Jump logic
+    if (this.jumpCooldown > 0) this.jumpCooldown -= deltaTime;
+    if (this.state === 'combat' && this.grounded && this.jumpCooldown <= 0 && Math.random() < deltaTime * 0.5) {
+      this.velocity.y = 6;
+      this.grounded = false;
+      this.jumpCooldown = 1.5 + Math.random();
+    }
+
+    // Crouch logic
+    if (this.state === 'combat' && this.grounded && Math.random() < deltaTime * 0.3) {
+      this.isCrouching = !this.isCrouching;
+    }
+    if (!this.grounded) this.isCrouching = false;
+    this.crouchTimer += deltaTime * (this.isCrouching ? 5 : -5);
+    this.crouchTimer = Math.max(0, Math.min(1, this.crouchTimer));
+
+    this._applyGravity(deltaTime, obstacles);
     this._avoidObstacles(obstacles, deltaTime);
     this._collisionResolve(obstacles);
 
@@ -217,7 +261,7 @@ export class BotController {
       this.flinchTimer -= deltaTime;
     }
 
-    this.updateVisual();
+    this.updateVisual(deltaTime);
     this.hitbox.update(this.position, this.euler);
 
     const shouldFire = this.state === 'combat' && this.fireTimer >= this.config.fireRate;
@@ -418,13 +462,49 @@ export class BotController {
     this.position.z += this.velocity.z * deltaTime;
   }
 
-  _applyGravity(deltaTime) {
+  _applyGravity(deltaTime, obstacles = []) {
     const gravity = -20;
     if (!this.grounded) {
       this.velocity.y += gravity * deltaTime;
     }
-    if (this.position.y <= 0) {
-      this.position.y = 0;
+
+    let groundY = null;
+    const halfH = this.height * 0.5;
+    const feetY = this.position.y - halfH;
+
+    if (this.position.y <= halfH && this.velocity.y <= 0) {
+      groundY = 0;
+    }
+
+    if (groundY === null && this.velocity.y <= 0) {
+      const r = 0.4;
+      for (const obj of obstacles) {
+        if (!obj.geometry) continue;
+        const geo = obj.geometry;
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        obj.updateWorldMatrix(true, false);
+        const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
+
+        if (feetY > worldBox.max.y || this.position.y + halfH < worldBox.min.y) continue;
+
+        const cx = this.position.x;
+        const cz = this.position.z;
+        const closestX = Math.max(worldBox.min.x, Math.min(cx, worldBox.max.x));
+        const closestZ = Math.max(worldBox.min.z, Math.min(cz, worldBox.max.z));
+        const dx = cx - closestX;
+        const dz = cz - closestZ;
+        if (dx * dx + dz * dz < r * r) {
+          const surfaceY = worldBox.max.y;
+          if (feetY >= surfaceY - 0.1 && feetY <= surfaceY + 0.05) {
+            groundY = surfaceY;
+            break;
+          }
+        }
+      }
+    }
+
+    if (groundY !== null) {
+      this.position.y = groundY + halfH;
       this.velocity.y = 0;
       this.grounded = true;
     } else {
@@ -463,6 +543,10 @@ export class BotController {
   _collisionResolve(obstacles) {
     if (obstacles.length === 0) return;
     const botRadius = 0.4;
+    const halfH = this.height * 0.5;
+    const botTop = this.position.y + halfH;
+    const botBottom = this.position.y - halfH;
+    const step = 0.35;
 
     for (const obj of obstacles) {
       if (!obj.geometry) continue;
@@ -470,6 +554,10 @@ export class BotController {
       if (!geo.boundingBox) geo.computeBoundingBox();
       obj.updateWorldMatrix(true, false);
       const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
+
+      if (botBottom > worldBox.max.y || botTop < worldBox.min.y) continue;
+
+      if (botBottom >= worldBox.max.y) continue;
 
       const cx = this.position.x;
         const cz = this.position.z;
@@ -480,6 +568,13 @@ export class BotController {
         const dist = Math.sqrt(dx * dx + dz * dz);
 
       if (dist < botRadius && dist > 0.001) {
+        const stepUpHeight = worldBox.max.y - botBottom;
+        if (stepUpHeight > 0 && stepUpHeight <= step) {
+          this.position.y += stepUpHeight;
+          this.velocity.y = 0;
+          continue;
+        }
+
         const overlap = botRadius - dist;
         const nx = dx / dist;
         const nz = dz / dist;
@@ -498,21 +593,40 @@ export class BotController {
     return diff;
   }
 
-  updateVisual() {
+  updateVisual(deltaTime = 0.016) {
     const flinchScale = this.flinchTimer > 0 ? 1 + this.flinchTimer * 2 : 1;
+    const crouchScale = 1 - this.crouchTimer * 0.4;
+
     this.group.position.copy(this.position);
-    this.group.position.y += this.height * 0.5;
     this.group.position.x += this.flinchOffset.x * flinchScale;
     this.group.position.z += this.flinchOffset.z * flinchScale;
     this.group.rotation.y = this.euler.y;
+    this.group.scale.y = crouchScale;
     this.weaponMesh.rotation.x = this.euler.x * 0.5 + (this.flinchOffset.y * flinchScale);
 
     if (this.bodyMesh) {
-      this.bodyMesh.position.y = this.height * 0.5;
+      this.bodyMesh.position.y = this.isCrouching ? 0.15 : 0.1;
     }
     if (this.headMesh) {
-      this.headMesh.position.y = this.height * 0.9;
+      this.headMesh.position.y = this.isCrouching ? 0.65 : 0.75;
       this.headMesh.position.z = -0.05;
+    }
+
+    const speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
+    if (speed > 0.1) {
+      this.walkPhase += deltaTime * speed * 4;
+      this.prevSpeed = speed;
+    } else {
+      this.walkPhase *= 0.9;
+      if (Math.abs(this.walkPhase) < 0.001) this.walkPhase = 0;
+    }
+
+    const swing = this.walkPhase;
+    if (this.leftLeg) {
+      this.leftLeg.rotation.x = Math.sin(swing) * 0.4;
+    }
+    if (this.rightLeg) {
+      this.rightLeg.rotation.x = Math.sin(swing + Math.PI) * 0.4;
     }
   }
 
@@ -536,6 +650,14 @@ export class BotController {
     if (this.weaponMesh) {
       this.weaponMesh.geometry.dispose();
       this.weaponMesh.material.dispose();
+    }
+    if (this.leftLeg) {
+      this.leftLeg.geometry.dispose();
+      this.leftLeg.material.dispose();
+    }
+    if (this.rightLeg) {
+      this.rightLeg.geometry.dispose();
+      this.rightLeg.material.dispose();
     }
   }
 }
