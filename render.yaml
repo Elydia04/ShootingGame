@@ -2,7 +2,7 @@ services:
   - type: web
     name: shooting-game
     runtime: node
-    buildCommand: npm install --prefix server && npx vite build
+    buildCommand: npm install && npm install --prefix server && npm run build
     startCommand: node server/index.js
     healthCheckPath: /health
     envVars:
