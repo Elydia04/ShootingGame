@@ -144,7 +144,8 @@ export class FirstPersonWeapon {
   }
 
   getMuzzleWorldPosition() {
-    const pos = new THREE.Vector3(0, 0.02, 0.48);
+    const z = this.currentWeaponType === 'Pistol' ? -0.18 : 0.48;
+    const pos = new THREE.Vector3(0, 0.02, z);
     pos.applyMatrix4(this.weaponGroup.matrixWorld);
     return pos;
   }
@@ -314,11 +315,14 @@ export class FirstPersonWeapon {
     }
 
     this.muzzleFlash = new THREE.PointLight(0xffaa44, 0, 4);
-    this.muzzleFlash.position.set(0, 0.02, 0.48);
+    this.muzzleFlash.position.set(0, 0.02, weaponType === 'Pistol' ? -0.18 : 0.48);
     this.weaponGroup.add(this.muzzleFlash);
     this.flashTimer = 0;
 
     this._createFlashSprite();
+    if (weaponType === 'Pistol') {
+      this.flashSprite.position.set(0, 0.02, -0.22);
+    }
 
     this._resetPose();
 
@@ -337,27 +341,27 @@ export class FirstPersonWeapon {
     const barrelMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.8, roughness: 0.2, emissive: 0x111111, emissiveIntensity: 0.1 });
     const barrel = new THREE.Mesh(barrelGeo, barrelMat);
     barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.02, 0.12);
+    barrel.position.set(0, 0.02, -0.12);
     this.weaponGroup.add(barrel);
 
     const silencerGeo = new THREE.CylinderGeometry(0.016, 0.018, 0.07, 8);
     const silencerMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.1 });
     const silencer = new THREE.Mesh(silencerGeo, silencerMat);
     silencer.rotation.x = Math.PI / 2;
-    silencer.position.set(0, 0.02, 0.18);
+    silencer.position.set(0, 0.02, -0.18);
     this.weaponGroup.add(silencer);
 
     const gripGeo = new THREE.BoxGeometry(0.025, 0.06, 0.045);
     const gripMat = new THREE.MeshStandardMaterial({ color: 0x999999, roughness: 0.7, emissive: 0x333333, emissiveIntensity: 0.1 });
     const grip = new THREE.Mesh(gripGeo, gripMat);
-    grip.position.set(0, -0.045, -0.04);
-    grip.rotation.x = 0.15;
+    grip.position.set(0, -0.045, 0.04);
+    grip.rotation.x = -0.15;
     this.weaponGroup.add(grip);
 
     const magGeo = new THREE.BoxGeometry(0.02, 0.04, 0.03);
     const magMat = new THREE.MeshStandardMaterial({ color: 0x777777, metalness: 0.3, roughness: 0.5, emissive: 0x222222, emissiveIntensity: 0.1 });
     const mag = new THREE.Mesh(magGeo, magMat);
-    mag.position.set(0, -0.07, -0.04);
+    mag.position.set(0, -0.07, 0.04);
     this.weaponGroup.add(mag);
   }
 
@@ -507,7 +511,8 @@ export class FirstPersonWeapon {
   }
 
   getMuzzlePosition() {
-    const pos = new THREE.Vector3(0, 0.02, 0.48);
+    const z = this.currentWeaponType === 'Pistol' ? -0.18 : 0.48;
+    const pos = new THREE.Vector3(0, 0.02, z);
     pos.applyMatrix4(this.weaponGroup.matrixWorld);
     return pos;
   }
