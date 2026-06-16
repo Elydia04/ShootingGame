@@ -1,6 +1,6 @@
 {
   "build": {
-    "command": "cd server && npm install && cd .. && npm install && npm run build",
+    "command": "npm install --prefix server && npx vite build",
     "builder": "nixpacks"
   },
   "deploy": {
