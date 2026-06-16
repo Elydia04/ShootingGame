@@ -395,6 +395,12 @@ class Game {
         this._multiWs.send(JSON.stringify({ type: 'start_game', data: { config: data?.config } }));
       }
     });
+
+    this.core.eventBus.on('lobby:regenerate_code', () => {
+      if (this._multiWs && this._multiWs.readyState === WebSocket.OPEN && this._multiHost) {
+        this._multiWs.send(JSON.stringify({ type: 'regenerate_code' }));
+      }
+    });
   }
 
   _handleMultiMessage(msg) {
@@ -409,6 +415,7 @@ class Game {
         this.ui.uiManager.multiLobby.code = msg.data.code;
         this.ui.uiManager.setMultiLobbyPlayers(msg.data.players);
         document.getElementById('lobby-code').textContent = msg.data.code;
+        document.getElementById('join-lobby-code').textContent = msg.data.code;
         document.getElementById('btn-start-game')?.classList.toggle('hidden', !this._multiHost);
         if (msg.type === 'room_joined') {
           this.core.eventBus.emit('lobby:joined');
@@ -462,6 +469,12 @@ class Game {
 
       case 'match_end':
         this._endMultiMatch(msg.data);
+        break;
+
+      case 'code_updated':
+        this.ui.uiManager.multiLobby.code = msg.data.code;
+        document.getElementById('lobby-code').textContent = msg.data.code;
+        document.getElementById('join-lobby-code').textContent = msg.data.code;
         break;
 
       case 'error':

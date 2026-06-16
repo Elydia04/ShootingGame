@@ -88,6 +88,10 @@
             <div id="lobby-code" class="lobby-code">------</div>
             <button id="btn-generate-code" class="menu-btn" style="margin-top:10px;width:auto;padding:6px 14px;font-size:0.85rem">Generate</button>
             <p class="lobby-hint" style="margin-top:8px">Share this code with friends to join</p>
+            <div class="lobby-name-section" style="margin-top:12px">
+              <label style="font-size:0.8rem;color:#aaa">Your Name</label>
+              <input type="text" id="name-input-create" class="lobby-input" placeholder="Name" maxlength="16" value="Player" autocomplete="off" style="margin-top:4px">
+            </div>
           </div>
           <div id="player-list" class="lobby-panel">
             <h3>Players</h3>
@@ -123,7 +127,7 @@
         </div>
 
         <div class="lobby-actions" style="margin-top:0.8rem">
-          <button id="btn-ready" class="menu-btn primary">Ready</button>
+          <button id="btn-ready" class="menu-btn" data-ready="false">Not Ready</button>
           <button id="btn-start-game" class="menu-btn primary hidden">Start Game</button>
           <button id="btn-leave-create" class="menu-btn">Leave</button>
         </div>
@@ -148,6 +152,10 @@
         </div>
 
         <div id="join-lobby-section" class="hidden">
+          <div class="lobby-code-display">Room Code: <span id="join-lobby-code">------</span></div>
+          <div class="lobby-name-section" style="margin-bottom:8px;text-align:center">
+            <input type="text" id="name-input-join" class="lobby-input" placeholder="Name" maxlength="16" value="Player" autocomplete="off" style="text-align:center">
+          </div>
           <div id="player-list-join" class="lobby-panel" style="margin-bottom:1rem">
             <h3>Players</h3>
             <div class="player-list-inner">
@@ -158,7 +166,7 @@
             </div>
           </div>
           <div class="lobby-actions">
-            <button id="btn-ready-join" class="menu-btn primary">Ready</button>
+            <button id="btn-ready-join" class="menu-btn" data-ready="false">Not Ready</button>
             <button id="btn-leave-joined" class="menu-btn">Leave</button>
           </div>
         </div>

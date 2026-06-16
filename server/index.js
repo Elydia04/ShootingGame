@@ -125,6 +125,19 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'pong', serverTime: Date.now(), clientTime: msg.data?.clientTime }));
         break;
       }
+      case 'regenerate_code': {
+        if (currentRoom && currentRoom.hostId === playerId) {
+          let newCode;
+          do {
+            newCode = Math.random().toString(36).slice(2, 8).toUpperCase();
+          } while (rooms.has(newCode));
+          rooms.delete(currentRoom.code);
+          currentRoom.code = newCode;
+          rooms.set(newCode, currentRoom);
+          currentRoom._broadcast({ type: 'code_updated', data: { code: newCode } });
+        }
+        break;
+      }
     }
   });
 

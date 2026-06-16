@@ -122,7 +122,21 @@ export class UIManager {
   }
 
   _setupMultiLobby() {
-    const getName = () => document.getElementById('player-name-input')?.value?.trim() || 'Player';
+    const nameInputs = ['player-name-input', 'name-input-create', 'name-input-join'];
+    const getName = () => {
+      for (const id of nameInputs) {
+        const val = document.getElementById(id)?.value?.trim();
+        if (val) return val;
+      }
+      return 'Player';
+    };
+    const syncNameInputs = (src) => {
+      const val = document.getElementById(src)?.value || '';
+      nameInputs.forEach(id => { const el = document.getElementById(id); if (el && el.id !== src) el.value = val; });
+    };
+    nameInputs.forEach(id => {
+      document.getElementById(id)?.addEventListener('input', () => syncNameInputs(id));
+    });
     this._multiConfig = { map: 'training_map', timeLimit: 10, scoreLimit: 50 };
 
     const showScreen = (screenId) => {
@@ -134,6 +148,7 @@ export class UIManager {
     document.getElementById('btn-create-lobby')?.addEventListener('click', () => {
       this.multiLobby.isHost = true;
       const name = getName();
+      syncNameInputs('player-name-input');
       this.multiLobby.code = this._generateLobbyCode();
       document.getElementById('lobby-code').textContent = this.multiLobby.code;
       this._renderMultiMapSelection();
@@ -156,10 +171,11 @@ export class UIManager {
     });
 
     const readyToggle = (btn) => {
-      const isReady = btn.textContent === 'Ready';
-      btn.textContent = isReady ? 'Unready' : 'Ready';
-      btn.classList.toggle('primary', isReady);
-      this.eventBus.emit('lobby:ready', isReady);
+      const ready = !btn.dataset.ready || btn.dataset.ready === 'false';
+      btn.dataset.ready = ready;
+      btn.textContent = ready ? 'Ready ✓' : 'Not Ready';
+      btn.classList.toggle('primary', ready);
+      this.eventBus.emit('lobby:ready', ready);
     };
 
     document.getElementById('btn-ready')?.addEventListener('click', (e) => readyToggle(e.currentTarget));
@@ -187,8 +203,7 @@ export class UIManager {
     });
 
     document.getElementById('btn-generate-code')?.addEventListener('click', () => {
-      this.multiLobby.code = this._generateLobbyCode();
-      document.getElementById('lobby-code').textContent = this.multiLobby.code;
+      this.eventBus.emit('lobby:regenerate_code');
     });
 
     document.getElementById('btn-join-confirm')?.addEventListener('click', () => {
