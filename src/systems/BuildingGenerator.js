@@ -65,6 +65,32 @@ function addDoorFrame(group, x, z, trimMat, doorMat) {
   }
 }
 
+function addCeilingLight(group, x, y, z) {
+  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffeedd, emissive: 0xffeecc, emissiveIntensity: 0.5 });
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), bulbMat);
+  bulb.position.set(x, y, z);
+  group.add(bulb);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.4 });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.15, 0.04, 8), baseMat);
+  base.position.set(x, y + 0.04, z);
+  group.add(base);
+}
+
+function addTable(group, x, y, z) {
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.8 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.6), woodMat);
+  top.position.set(x, y + 0.7, z);
+  top.castShadow = true;
+  group.add(top);
+  for (let ox of [-0.42, 0.42]) {
+    for (let oz of [-0.22, 0.22]) {
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.68, 0.04), woodMat);
+      leg.position.set(x + ox, y + 0.34, z + oz);
+      group.add(leg);
+    }
+  }
+}
+
 function frontWallWithDoor(w, fH, wallThick, mat, d, glassMat) {
   const parts = [];
   const fL = new THREE.Mesh(new THREE.BoxGeometry(w * 0.35, fH, wallThick), mat);
@@ -152,6 +178,10 @@ export class BuildingGenerator {
 
     // Door
     addDoorFrame(group, 0, d / 2 + 0.01, trimMat, doorMat);
+
+    // Interior
+    addCeilingLight(group, 0, wallH - 0.05, 0);
+    addTable(group, -2, 0, 1.5);
 
     return group;
   }
@@ -317,6 +347,10 @@ export class BuildingGenerator {
     // Ground floor door
     addDoorFrame(group, 0, d / 2 + 0.01, trimMat, doorMat);
 
+    // Interior
+    addCeilingLight(group, 0, floorH - 0.05, 0);
+    addTable(group, -2, 0, 1.5);
+
     return group;
   }
 
@@ -401,6 +435,9 @@ export class BuildingGenerator {
 
     // Ground floor door
     addDoorFrame(group, 0, d / 2 + 0.01, trimMat, doorMat);
+
+    // Interior
+    addCeilingLight(group, 0, floorH - 0.05, 0);
 
     return group;
   }

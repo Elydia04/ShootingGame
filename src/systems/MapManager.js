@@ -62,8 +62,19 @@ export class MapManager {
     }
 
     if (mapData.trees) {
+      const buildingZones = (mapData.buildings || []).map(b => {
+        const opts = b.options || {};
+        const bw = (opts.width || (b.type === 'house3' ? 10 : 12)) / 2 + 2;
+        const bd = (opts.depth || (b.type === 'house3' ? 9 : 10)) / 2 + 2;
+        return { x: b.x || 0, z: b.z || 0, hw: bw, hd: bd };
+      });
       for (const t of mapData.trees) {
-        this._createTree(t);
+        const tx = t.x || 0, tz = t.z || 0;
+        const overlap = buildingZones.some(bz =>
+          tx > bz.x - bz.hw && tx < bz.x + bz.hw &&
+          tz > bz.z - bz.hd && tz < bz.z + bz.hd
+        );
+        if (!overlap) this._createTree(t);
       }
     }
 
