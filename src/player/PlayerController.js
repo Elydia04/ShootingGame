@@ -1,23 +1,9 @@
 import * as THREE from 'three';
+import { MovementController } from './MovementController.js';
 
-const MOVEMENT = {
-  walkSpeed: 4.5,
-  sprintSpeed: 7.2,
-  crouchSpeed: 2.2,
-  jumpForce: 8.0,
-  acceleration: 12.0,
-  deceleration: 10.0,
-  airAcceleration: 4.0,
-  airDeceleration: 2.0,
-  airControl: 0.3,
-  crouchHeight: 0.8,
-  normalHeight: 1.8,
-  crouchTransitionSpeed: 8.0,
-  gravity: -20.0,
-  maxFallSpeed: -30.0,
-  groundFriction: 50.0,
-  slopeLimit: 0.8
-};
+const CROUCH_HEIGHT = 0.8;
+const NORMAL_HEIGHT = 1.8;
+const CROUCH_TRANSITION = 8.0;
 
 const CAMERA = {
   normalHeight: 1.6,
@@ -38,20 +24,17 @@ export class PlayerController {
     this.settings = settingsManager;
 
     this.position = new THREE.Vector3(0, 0, 0);
-    this.velocity = new THREE.Vector3(0, 0, 0);
+    this.movement = new MovementController();
+    this.velocity = this.movement.velocity;
     this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
     this.quaternion = new THREE.Quaternion();
 
-    this.height = MOVEMENT.normalHeight;
-    this.targetHeight = MOVEMENT.normalHeight;
+    this.height = NORMAL_HEIGHT;
+    this.targetHeight = NORMAL_HEIGHT;
     this.camHeight = CAMERA.normalHeight;
     this.targetCamHeight = CAMERA.normalHeight;
 
-    this.grounded = false;
-    this.wasGrounded = false;
-    this.fallingVelocity = 0;
-    this.wishDirection = new THREE.Vector3();
-    this.moveDir = new THREE.Vector3();
+    this.isInAir = false;
 
     this.inputs = {
       forward: false,
@@ -77,8 +60,6 @@ export class PlayerController {
     this.isMoving = false;
     this.isSprinting = false;
     this.isCrouching = false;
-    this.isInAir = false;
-
     this.cameraActive = true;
 
     this.flinchTarget = new THREE.Vector3();
@@ -91,34 +72,7 @@ export class PlayerController {
     this.slowMultiplier = 0.5;
     this.isSlowed = false;
 
-    this._lastGroundPos = new THREE.Vector3();
-    this._airTime = 0;
-
     this.onFallDamage = null;
-
-    this._collidables = [];
-    this._playerRadius = 0.4;
-    this._stepHeight = 0.35;
-  }
-
-  get forward() {
-    const euler = this.euler;
-    const forward = new THREE.Vector3(
-      -Math.sin(euler.y),
-      0,
-      -Math.cos(euler.y)
-    );
-    return forward;
-  }
-
-  get right() {
-    const euler = this.euler;
-    const right = new THREE.Vector3(
-      Math.cos(euler.y),
-      0,
-      -Math.sin(euler.y)
-    );
-    return right;
   }
 
   handleMouseMove(event) {
@@ -198,31 +152,27 @@ export class PlayerController {
   update(deltaTime, collidables = [], collisionCallback = null) {
     const dt = Math.min(deltaTime, 0.05);
 
-    this._collidables = collidables;
-
     this._updatePitch(dt);
     this._updateYaw(dt);
-
     this._updateStance(dt);
 
-    this._computeWishDirection();
-
-    this._applyMovement(dt);
+    this.movement.collidables = collidables;
+    this.movement.computeWish(this.inputs, this.euler.y);
+    this.isSprinting = this.movement.applyMovement(dt, this.inputs);
+    this.movement.applyGravity(dt);
+    this.movement.integrate(this.position, dt);
+    this.movement.resolveCollisions(this.position);
+    this.movement.checkGround(this.position, dt, this.inputs);
+    this.grounded = this.movement.grounded;
+    this.isInAir = !this.grounded;
+    this.currentSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
+    this.isMoving = this.currentSpeed > 0.1;
 
     if (collisionCallback) {
       collisionCallback(this);
     }
 
-    this._applyGravity(dt);
-
-    this._integratePosition(dt);
-
-    this._resolveCollision();
-
-    this._checkGroundState(dt);
-
     this._updateBob(dt);
-
     this._updateCamera(dt);
   }
 
@@ -244,232 +194,15 @@ export class PlayerController {
     this.isCrouching = crouching;
 
     if (crouching) {
-      this.targetHeight = MOVEMENT.crouchHeight;
+      this.targetHeight = CROUCH_HEIGHT;
       this.targetCamHeight = CAMERA.crouchHeight;
     } else {
-      this.targetHeight = MOVEMENT.normalHeight;
+      this.targetHeight = NORMAL_HEIGHT;
       this.targetCamHeight = CAMERA.normalHeight;
     }
 
-    this.height += (this.targetHeight - this.height) * MOVEMENT.crouchTransitionSpeed * dt;
-    this.camHeight += (this.targetCamHeight - this.camHeight) * MOVEMENT.crouchTransitionSpeed * dt;
-  }
-
-  _computeWishDirection() {
-    this.wishDirection.set(0, 0, 0);
-
-    const forward = this.forward;
-    const right = this.right;
-
-    if (this.inputs.forward) this.wishDirection.add(forward);
-    if (this.inputs.backward) this.wishDirection.sub(forward);
-    if (this.inputs.left) this.wishDirection.sub(right);
-    if (this.inputs.right) this.wishDirection.add(right);
-
-    if (this.wishDirection.lengthSq() > 0) {
-      this.wishDirection.normalize();
-    }
-  }
-
-  _applyMovement(dt) {
-    const isCrouching = this.isCrouching;
-    const isSprinting = this.inputs.sprint && !isCrouching && this.inputs.forward &&
-      !this.inputs.backward && !this.inputs.left && !this.inputs.right;
-
-    this.isSprinting = isSprinting;
-
-    let maxSpeed = MOVEMENT.walkSpeed;
-    if (isSprinting) maxSpeed = MOVEMENT.sprintSpeed;
-    if (isCrouching) maxSpeed = MOVEMENT.crouchSpeed;
-    if (this.isSlowed) maxSpeed *= this.slowMultiplier;
-
-    const onGround = this.grounded;
-    const accel = onGround ? MOVEMENT.acceleration : MOVEMENT.airAcceleration;
-    const decel = onGround ? MOVEMENT.deceleration : MOVEMENT.airDeceleration;
-    const friction = onGround ? MOVEMENT.groundFriction : 0;
-
-    const wishSpeed = this.wishDirection.length();
-    this.isMoving = wishSpeed > 0;
-
-    if (wishSpeed > 0) {
-      this.wishDirection.multiplyScalar(Math.min(wishSpeed, 1));
-      const addSpeed = this.wishDirection.clone().multiplyScalar(maxSpeed);
-      const currentVel = this.velocity.clone();
-      currentVel.y = 0;
-
-      let delta = addSpeed.clone().sub(currentVel);
-      const deltaLen = delta.length();
-      const maxDelta = accel * maxSpeed * dt;
-
-      if (deltaLen > maxDelta) {
-        delta.multiplyScalar(maxDelta / deltaLen);
-      }
-
-      this.velocity.x += delta.x;
-      this.velocity.z += delta.z;
-
-      if (!onGround) {
-        this.velocity.x *= (1 - MOVEMENT.airControl * dt);
-        this.velocity.z *= (1 - MOVEMENT.airControl * dt);
-      }
-    } else {
-      if (onGround) {
-        const speed = Math.sqrt(
-          this.velocity.x * this.velocity.x +
-          this.velocity.z * this.velocity.z
-        );
-        if (speed > 0) {
-          const drop = friction * dt;
-          const newSpeed = Math.max(0, speed - drop);
-          const ratio = newSpeed / speed;
-          this.velocity.x *= ratio;
-          this.velocity.z *= ratio;
-        }
-      } else {
-        this.velocity.x *= (1 - decel * dt * 0.1);
-        this.velocity.z *= (1 - decel * dt * 0.1);
-      }
-    }
-
-    this.currentSpeed = Math.sqrt(
-      this.velocity.x * this.velocity.x +
-      this.velocity.z * this.velocity.z
-    );
-  }
-
-  _applyGravity(dt) {
-    if (!this.grounded) {
-      this.velocity.y += MOVEMENT.gravity * dt;
-      if (this.velocity.y < MOVEMENT.maxFallSpeed) {
-        this.velocity.y = MOVEMENT.maxFallSpeed;
-      }
-    }
-  }
-
-  _integratePosition(dt) {
-    this.position.x += this.velocity.x * dt;
-    this.position.z += this.velocity.z * dt;
-    this.position.y += this.velocity.y * dt;
-  }
-
-  _resolveCollision() {
-    const r = this._playerRadius;
-    const step = this._stepHeight;
-    const playerTop = this.position.y + this.height * 0.5;
-    const playerBottom = this.position.y - this.height * 0.5;
-
-    for (const obj of this._collidables) {
-      if (!obj.geometry) continue;
-      const geo = obj.geometry;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      obj.updateWorldMatrix(true, false);
-      const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
-
-      if (playerBottom > worldBox.max.y || playerTop < worldBox.min.y) continue;
-
-      if (playerBottom >= worldBox.max.y) continue;
-
-      const cx = this.position.x;
-      const cz = this.position.z;
-      const closestX = Math.max(worldBox.min.x, Math.min(cx, worldBox.max.x));
-      const closestZ = Math.max(worldBox.min.z, Math.min(cz, worldBox.max.z));
-      const dx = cx - closestX;
-      const dz = cz - closestZ;
-      const distSq = dx * dx + dz * dz;
-
-      if (distSq < r * r && distSq > 0.0001) {
-        const stepUpHeight = worldBox.max.y - playerBottom;
-        if (stepUpHeight > 0 && stepUpHeight <= step) {
-          this.position.y += stepUpHeight;
-          this.velocity.y = 0;
-          continue;
-        }
-
-        const dist = Math.sqrt(distSq);
-        const overlap = r - dist;
-        const nx = dx / dist;
-        const nz = dz / dist;
-        this.position.x += nx * overlap;
-        this.position.z += nz * overlap;
-        this.velocity.x *= 0.1;
-        this.velocity.z *= 0.1;
-      }
-    }
-  }
-
-  _checkGroundState(dt) {
-    this.wasGrounded = this.grounded;
-    const halfH = this.height * 0.5;
-    const feetY = this.position.y - halfH;
-
-    let groundY = null;
-
-    if (this.velocity.y <= 0 && this.position.y <= halfH + 0.01) {
-      groundY = 0;
-    }
-
-    if (this.velocity.y <= 0 && groundY === null) {
-      const r = this._playerRadius;
-      for (const obj of this._collidables) {
-        if (!obj.geometry) continue;
-        const geo = obj.geometry;
-        if (!geo.boundingBox) geo.computeBoundingBox();
-        obj.updateWorldMatrix(true, false);
-        const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
-
-        if (feetY > worldBox.max.y || this.position.y + halfH < worldBox.min.y) continue;
-
-        const cx = this.position.x;
-        const cz = this.position.z;
-        const closestX = Math.max(worldBox.min.x, Math.min(cx, worldBox.max.x));
-        const closestZ = Math.max(worldBox.min.z, Math.min(cz, worldBox.max.z));
-        const dx = cx - closestX;
-        const dz = cz - closestZ;
-        if (dx * dx + dz * dz < r * r) {
-          const surfaceY = worldBox.max.y;
-          if (feetY >= surfaceY - 0.1 && feetY <= surfaceY + 0.05) {
-            groundY = surfaceY;
-            break;
-          }
-        }
-      }
-    }
-
-    if (groundY !== null) {
-      if (!this.grounded) {
-        const fallDist = this._lastGroundPos.y - this.position.y;
-        if (fallDist > 0.5) {
-          this.landBobbing = CAMERA.landImpact * Math.min(fallDist / 5, 1);
-        }
-        if (fallDist > 3.0) {
-          const damage = Math.round((fallDist - 3) * 5);
-          if (this.onFallDamage) {
-            this.onFallDamage(damage);
-          }
-        }
-      }
-      this.grounded = true;
-      this.position.y = groundY + halfH;
-      if (this.velocity.y < 0) {
-        this.velocity.y = 0;
-      }
-    } else {
-      this.grounded = false;
-    }
-
-    if (this.inputs.jump && this.grounded) {
-      this.velocity.y = MOVEMENT.jumpForce;
-      this.grounded = false;
-    }
-
-    this.isInAir = !this.grounded;
-
-    if (this.grounded) {
-      this._lastGroundPos.copy(this.position);
-      this._airTime = 0;
-    } else {
-      this._airTime += dt;
-    }
+    this.height += (this.targetHeight - this.height) * CROUCH_TRANSITION * dt;
+    this.camHeight += (this.targetCamHeight - this.camHeight) * CROUCH_TRANSITION * dt;
   }
 
   _updateBob(dt) {
@@ -487,8 +220,8 @@ export class PlayerController {
         amp *= CAMERA.crouchBobMultiplier;
       }
 
-      this.bobPhase += freq * dt * Math.min(speed / MOVEMENT.walkSpeed, 1.5);
-      this.bobIntensity = amp * Math.min(speed / MOVEMENT.walkSpeed, 1.2);
+      this.bobPhase += freq * dt * Math.min(speed / 4.5, 1.5);
+      this.bobIntensity = amp * Math.min(speed / 4.5, 1.2);
     } else {
       this.bobIntensity *= (1 - 10 * dt);
       if (this.bobIntensity < 0.001) this.bobIntensity = 0;
