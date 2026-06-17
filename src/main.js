@@ -55,6 +55,9 @@ class Game {
     this.playerAlive = true;
     this.cameraView = CameraView.FIRST_PERSON;
     this.impactParticles = [];
+    this._impactParticlePool = [];
+    this._collidableBoxCache = [];
+    this._collidableCacheFrame = -1;
     this.footstepTimer = 0;
     this._respawnTimer = null;
     this._botRespawnTimers = [];
@@ -190,7 +193,7 @@ class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = this.core.settingsManager.get('graphics', 'shadows');
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = THREE.ReinhardToneMapping;
     this.renderer.toneMappingExposure = 1.0;
 
     const container = document.getElementById('game-canvas-container');
@@ -1159,12 +1162,10 @@ class Game {
     for (let i = this.impactParticles.length - 1; i >= 0; i--) {
       const p = this.impactParticles[i];
       p.life -= deltaTime;
-      p.mesh.position.add(p.velocity.clone().multiplyScalar(deltaTime));
+      p.mesh.position.addScaledVector(p.velocity, deltaTime);
       p.mesh.material.opacity = Math.max(0, p.life / 0.8);
       if (p.life <= 0) {
-        this.scene.remove(p.mesh);
-        p.mesh.geometry.dispose();
-        p.mesh.material.dispose();
+        this._recycleImpactParticle(p);
         this.impactParticles.splice(i, 1);
       }
     }
@@ -1272,11 +1273,24 @@ class Game {
       document.pointerLockElement === this.renderer.domElement;
   }
 
+  _computeCollidableBoxes(collidables) {
+    const boxes = [];
+    for (const obj of collidables) {
+      if (!obj.geometry) continue;
+      const geo = obj.geometry;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      obj.updateWorldMatrix(true, false);
+      boxes.push(geo.boundingBox.clone().applyMatrix4(obj.matrixWorld));
+    }
+    return boxes;
+  }
+
   _updateBots(deltaTime) {
     if (!this.core.gameStateManager.is(States.PLAYING)) return;
     if (this.gameMode !== 'solo') return;
 
     const collidables = this.getCollidables();
+    const boxes = this._computeCollidableBoxes(collidables);
 
     for (const bot of this.bots) {
       if (!bot.alive) continue;
@@ -1285,7 +1299,8 @@ class Game {
         deltaTime,
         this.player.controller.position,
         this.playerAlive,
-        collidables
+        collidables,
+        boxes
       );
 
       if (fireResult && this.playerAlive) {
@@ -1386,21 +1401,44 @@ class Game {
     }
   }
 
+  _getImpactParticle() {
+    if (this._impactParticlePool.length > 0) {
+      const p = this._impactParticlePool.pop();
+      p.mesh.visible = true;
+      return p;
+    }
+    const geo = new THREE.SphereGeometry(0.025, 4, 4);
+    const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 1 });
+    const mesh = new THREE.Mesh(geo, mat);
+    this.scene.add(mesh);
+    return { mesh, velocity: new THREE.Vector3() };
+  }
+
+  _recycleImpactParticle(p) {
+    p.mesh.visible = false;
+    if (this._impactParticlePool.length < 120) {
+      this._impactParticlePool.push(p);
+    } else {
+      this.scene.remove(p.mesh);
+      p.mesh.geometry.dispose();
+      p.mesh.material.dispose();
+    }
+  }
+
   _showImpactEffect(point, normal, isBot) {
     const color = isBot ? 0xcc2222 : 0xffaa44;
     const count = isBot ? 3 : 5;
     for (let i = 0; i < count; i++) {
-      const geo = new THREE.SphereGeometry(0.025, 4, 4);
-      const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.copy(point);
-      const spread = new THREE.Vector3(
+      const p = this._getImpactParticle();
+      p.mesh.material.color.setHex(color);
+      p.mesh.position.copy(point);
+      p.velocity.set(
         (Math.random() - 0.5) * 2,
         Math.random() * 2,
         (Math.random() - 0.5) * 2
       ).normalize().multiplyScalar(1.5 + Math.random() * 2);
-      this.scene.add(mesh);
-      this.impactParticles.push({ mesh, velocity: spread, life: 0.4 + Math.random() * 0.3 });
+      p.life = 0.4 + Math.random() * 0.3;
+      this.impactParticles.push(p);
     }
   }
 

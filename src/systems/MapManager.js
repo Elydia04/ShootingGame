@@ -242,8 +242,8 @@ export class MapManager {
         config.directional.z || 50
       );
       dir.castShadow = true;
-      dir.shadow.mapSize.width = 2048;
-      dir.shadow.mapSize.height = 2048;
+      dir.shadow.mapSize.width = 1024;
+      dir.shadow.mapSize.height = 1024;
       dir.shadow.camera.near = 0.5;
       dir.shadow.camera.far = 200;
       dir.shadow.camera.left = -100;

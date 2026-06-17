@@ -226,7 +226,7 @@ export class BotController {
     this.updateVisual();
   }
 
-  update(deltaTime, playerPosition, playerAlive, obstacles = []) {
+  update(deltaTime, playerPosition, playerAlive, obstacles = [], collidableBoxes = null) {
     if (!this.alive) return null;
 
     this.fireTimer += deltaTime;
@@ -253,9 +253,9 @@ export class BotController {
     this.crouchTimer += deltaTime * (this.isCrouching ? 5 : -5);
     this.crouchTimer = Math.max(0, Math.min(1, this.crouchTimer));
 
-    this._applyGravity(deltaTime, obstacles);
+    this._applyGravity(deltaTime, obstacles, collidableBoxes);
     this._avoidObstacles(obstacles, deltaTime);
-    this._collisionResolve(obstacles);
+    this._collisionResolve(obstacles, collidableBoxes);
 
     if (this.flinchTimer > 0) {
       this.flinchTimer -= deltaTime;
@@ -462,7 +462,7 @@ export class BotController {
     this.position.z += this.velocity.z * deltaTime;
   }
 
-  _applyGravity(deltaTime, obstacles = []) {
+  _applyGravity(deltaTime, obstacles = [], collidableBoxes = null) {
     const gravity = -20;
     if (!this.grounded) {
       this.velocity.y += gravity * deltaTime;
@@ -478,13 +478,8 @@ export class BotController {
 
     if (groundY === null && this.velocity.y <= 0) {
       const r = 0.4;
-      for (const obj of obstacles) {
-        if (!obj.geometry) continue;
-        const geo = obj.geometry;
-        if (!geo.boundingBox) geo.computeBoundingBox();
-        obj.updateWorldMatrix(true, false);
-        const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
-
+      const boxes = collidableBoxes || this._computeObstacleBoxes(obstacles);
+      for (const worldBox of boxes) {
         if (feetY > worldBox.max.y || this.position.y + halfH < worldBox.min.y) continue;
 
         const cx = this.position.x;
@@ -540,7 +535,7 @@ export class BotController {
     }
   }
 
-  _collisionResolve(obstacles) {
+  _collisionResolve(obstacles, collidableBoxes = null) {
     if (obstacles.length === 0) return;
     const botRadius = 0.4;
     const halfH = this.height * 0.5;
@@ -548,13 +543,8 @@ export class BotController {
     const botBottom = this.position.y - halfH;
     const step = 0.35;
 
-    for (const obj of obstacles) {
-      if (!obj.geometry) continue;
-      const geo = obj.geometry;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      obj.updateWorldMatrix(true, false);
-      const worldBox = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
-
+    const boxes = collidableBoxes || this._computeObstacleBoxes(obstacles);
+    for (const worldBox of boxes) {
       if (botBottom > worldBox.max.y || botTop < worldBox.min.y) continue;
 
       if (botBottom >= worldBox.max.y) continue;
@@ -628,6 +618,18 @@ export class BotController {
     if (this.rightLeg) {
       this.rightLeg.rotation.x = Math.sin(swing + Math.PI) * 0.4;
     }
+  }
+
+  _computeObstacleBoxes(obstacles) {
+    const boxes = [];
+    for (const obj of obstacles) {
+      if (!obj.geometry) continue;
+      const geo = obj.geometry;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      obj.updateWorldMatrix(true, false);
+      boxes.push(geo.boundingBox.clone().applyMatrix4(obj.matrixWorld));
+    }
+    return boxes;
   }
 
   setVisible(visible) {
