@@ -1244,6 +1244,9 @@ body {
   justify-content: center;
   cursor: pointer;
 }
+.click-to-play-overlay.hidden {
+  display: none;
+}
 .click-to-play-content {
   text-align: center;
   color: #fff;
