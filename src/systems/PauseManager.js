@@ -48,7 +48,7 @@ export class PauseManager {
   pause() {
     this.game.paused = true;
     this.game._onTriggerRelease?.();
-    document.exitPointerLock();
+    try { document.exitPointerLock(); } catch (_) {}
     document.getElementById('pause-continue')?.focus();
     this.overlay.style.display = 'flex';
   }

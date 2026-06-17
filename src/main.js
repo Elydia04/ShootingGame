@@ -196,7 +196,7 @@ class Game {
   _setupRenderer() {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
-      powerPreference: 'high-performance'
+      powerPreference: 'default'
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -801,6 +801,23 @@ class Game {
     this.ui.hud.show();
     this._clearBots();
     this._clearRemotePlayers();
+
+    if (document.pointerLockElement !== this.renderer.domElement) {
+      this._showPointerLockPrompt();
+    }
+  }
+
+  _showPointerLockPrompt() {
+    const overlay = document.getElementById('click-to-play-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('hidden');
+
+    const handler = () => {
+      overlay.classList.add('hidden');
+      this.pauseManager.requestPointerLock();
+      overlay.removeEventListener('click', handler);
+    };
+    overlay.addEventListener('click', handler);
   }
 
   _clearRemotePlayers() {
@@ -1174,7 +1191,7 @@ class Game {
 
     this.core.gameStateManager.on(States.MATCH_END, (data) => {
       this.pauseManager.resume();
-      document.exitPointerLock();
+      try { document.exitPointerLock(); } catch (_) {}
       this.ui.hud?.hide();
 
       const matchStats = this.systems.matchManager.getMatchStats();
@@ -1647,12 +1664,28 @@ class Game {
       const deltaTime = this.clock.getDelta();
       const rawDelta = Math.min(deltaTime, 0.05);
 
-      if (this.paused) {
-        if (this.gameMode === 'solo') {
-          this._render();
-          requestAnimationFrame(this._gameLoop);
-          return;
+      if (this._fpsAccum === undefined) this._fpsAccum = 0;
+      if (this._fpsCount === undefined) this._fpsCount = 0;
+      this._fpsAccum += rawDelta;
+      this._fpsCount++;
+      if (this._fpsAccum >= 2) {
+        const fps = this._fpsCount / this._fpsAccum;
+        if (fps < 25 && !this._qualityReduced) {
+          this._qualityReduced = true;
+          this.core.settingsManager.set('graphics', 'pixelRatio', 0.75);
+          this.core.settingsManager.set('graphics', 'shadowResolution', 512);
+          this.core.settingsManager.set('graphics', 'shadows', false);
+          this._applyGraphicsSettings();
+          console.log('[AutoQuality] FPS low, reduced settings');
         }
+        this._fpsAccum = 0;
+        this._fpsCount = 0;
+      }
+
+      if (this.paused) {
+        this._render();
+        requestAnimationFrame(this._gameLoop);
+        return;
       }
 
       this.inputManager.syncInputs();

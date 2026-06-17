@@ -70,14 +70,14 @@ export class InputManager {
         } else if (this.game.core.gameStateManager.is(States.PLAYING) && document.pointerLockElement === this.game.renderer.domElement) {
           this.game.pauseManager.pause();
         } else {
-          document.exitPointerLock();
+          try { document.exitPointerLock(); } catch (_) {}
         }
       }
 
       if (e.code === 'AltLeft' || e.code === 'AltRight') {
         e.preventDefault();
         if (document.pointerLockElement === this.game.renderer.domElement) {
-          document.exitPointerLock();
+          try { document.exitPointerLock(); } catch (_) {}
         } else if (this.game.core.gameStateManager.is(States.PLAYING)) {
           this.game.pauseManager.requestPointerLock();
         }
