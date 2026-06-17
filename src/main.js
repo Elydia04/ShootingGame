@@ -1638,14 +1638,21 @@ class Game {
     if (this.gameMode === 'multi' && nm.isConnected()) {
       const inputs = this.player.controller?.inputs;
       const euler = this.player.controller?.euler;
+
+      if (this._inputSendAccum === undefined) this._inputSendAccum = 0;
+      this._inputSendAccum += deltaTime;
+
       if (inputs && this.playerAlive) {
         this._inputSeq++;
         const inputData = { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 }, seq: this._inputSeq };
         this._pendingInputs.push({ seq: this._inputSeq, input: inputData, time: performance.now() });
         if (this._pendingInputs.length > 120) this._pendingInputs.shift();
-        nm.sendInput(inputData);
+
+        if (this._inputSendAccum >= 1 / 30) {
+          this._inputSendAccum = 0;
+          nm.sendInput(inputData);
+        }
       }
-      nm._updateTimer = 0;
     }
 
     this._multiPing = Math.round(nm.latency);
