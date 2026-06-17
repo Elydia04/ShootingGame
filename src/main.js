@@ -932,30 +932,81 @@ class Game {
       return;
     }
 
-    const predicted = serverPos.clone();
+    const sv = state.velocity || { x: 0, y: 0, z: 0 };
+    const predPos = serverPos.clone();
+    const predVel = { x: sv.x, y: sv.y, z: sv.z };
+    const dt = 1 / 30;
     for (const p of this._pendingInputs) {
-      if (p.input) this._applyPredictedInput(p.input, predicted);
+      if (p.input) this._applyPredictedInput(p.input, predPos, predVel, dt);
     }
 
-    predicted.y = serverPos.y;
-    const correctedDiff = localPos.distanceTo(predicted);
+    predPos.y = serverPos.y;
+    const correctedDiff = localPos.distanceTo(predPos);
 
     if (correctedDiff > 0.01) {
-      this._reconcileTarget.copy(predicted);
+      this._reconcileTarget.copy(predPos);
       this._reconcileBlend = 0;
     }
   }
 
-  _applyPredictedInput(input, pos) {
-    const dt = 1 / 30;
-    const speed = input.sprint ? 7 : 5;
-    const forward = input.forward ? 1 : input.backward ? -1 : 0;
-    const strafe = input.right ? 1 : input.left ? -1 : 0;
+  _applyPredictedInput(input, pos, vel, dt) {
+    const sprint = input.sprint && input.forward && !input.backward && !input.crouch;
+    const crouch = input.crouch;
+    const maxSpeed = crouch ? 2.2 : (sprint ? 7.2 : 4.5);
+    const grounded = pos.y <= 0.9 && vel.y <= 0;
+    const accel = grounded ? 12.0 : 4.0;
+    const friction = 10.0;
+    const gravity = -20;
+    const airControl = 0.3;
+    const jumpForce = 8.0;
+
     const yaw = input.euler?.y || 0;
-    const sinY = Math.sin(yaw);
-    const cosY = Math.cos(yaw);
-    pos.x += (strafe * cosY - forward * sinY) * speed * dt;
-    pos.z += (-forward * cosY - strafe * sinY) * speed * dt;
+    let wx = 0, wz = 0;
+    if (input.forward) { wx -= Math.sin(yaw); wz -= Math.cos(yaw); }
+    if (input.backward) { wx += Math.sin(yaw); wz += Math.cos(yaw); }
+    if (input.left) { wx -= Math.cos(yaw); wz += Math.sin(yaw); }
+    if (input.right) { wx += Math.cos(yaw); wz -= Math.sin(yaw); }
+    const wlen = Math.sqrt(wx * wx + wz * wz);
+    if (wlen > 0) { wx /= wlen; wz /= wlen; }
+
+    if (wlen > 0) {
+      const addX = wx * maxSpeed;
+      const addZ = wz * maxSpeed;
+      let dx = addX - vel.x;
+      let dz = addZ - vel.z;
+      const dlen = Math.sqrt(dx * dx + dz * dz);
+      const maxDelta = accel * maxSpeed * dt;
+      if (dlen > maxDelta) {
+        const s = maxDelta / dlen;
+        dx *= s; dz *= s;
+      }
+      vel.x += dx;
+      vel.z += dz;
+      if (!grounded) {
+        vel.x *= (1 - airControl * dt);
+        vel.z *= (1 - airControl * dt);
+      }
+    } else if (grounded) {
+      const spd = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+      if (spd > 0) {
+        const drop = friction * dt;
+        vel.x *= Math.max(0, spd - drop) / spd;
+        vel.z *= Math.max(0, spd - drop) / spd;
+      }
+    }
+
+    if (!grounded) {
+      vel.y += gravity * dt;
+      if (vel.y < -30) vel.y = -30;
+    }
+
+    pos.x += vel.x * dt;
+    pos.z += vel.z * dt;
+    pos.y += vel.y * dt;
+
+    if (input.jump && grounded) {
+      vel.y = jumpForce;
+    }
   }
 
   _handleMultiSpawn(data) {}

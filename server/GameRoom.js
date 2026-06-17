@@ -171,27 +171,78 @@ export class GameRoom {
     this._broadcastState();
   }
 
-  _processPlayerMovement(player, dt) {
+  _computeWish(inputs, yaw) {
+    let wx = 0, wz = 0;
+    if (inputs.forward) { wx -= Math.sin(yaw); wz -= Math.cos(yaw); }
+    if (inputs.backward) { wx += Math.sin(yaw); wz += Math.cos(yaw); }
+    if (inputs.left) { wx -= Math.cos(yaw); wz += Math.sin(yaw); }
+    if (inputs.right) { wx += Math.cos(yaw); wz -= Math.sin(yaw); }
+    const len = Math.sqrt(wx * wx + wz * wz);
+    if (len > 0) { wx /= len; wz /= len; }
+    return { x: wx, z: wz };
+  }
+
+  _applyServerMovement(player, dt) {
     const inputs = player.inputs;
-    const speed = inputs.sprint ? 7 : 5;
-    const forward = inputs.forward ? 1 : inputs.backward ? -1 : 0;
-    const strafe = inputs.right ? 1 : inputs.left ? -1 : 0;
-    const yaw = player.euler.y;
+    const sprint = inputs.sprint && inputs.forward && !inputs.backward && !inputs.crouch;
+    const crouch = inputs.crouch;
+    const maxSpeed = crouch ? 2.2 : (sprint ? 7.2 : 4.5);
+    const accel = player.grounded ? 12.0 : 4.0;
+    const friction = 10.0;
+    const airControl = 0.3;
 
-    const moveX = (strafe * Math.cos(yaw) - forward * Math.sin(yaw)) * speed * dt;
-    const moveZ = (-forward * Math.cos(yaw) - strafe * Math.sin(yaw)) * speed * dt;
+    const wish = this._computeWish(inputs, player.euler.y);
+    const wishSpeed = Math.sqrt(wish.x * wish.x + wish.z * wish.z);
 
-    player.position.x += moveX;
-    player.position.z += moveZ;
+    if (wishSpeed > 0) {
+      const addX = wish.x * maxSpeed;
+      const addZ = wish.z * maxSpeed;
+      let deltaX = addX - player.velocity.x;
+      let deltaZ = addZ - player.velocity.z;
+      const deltaLen = Math.sqrt(deltaX * deltaX + deltaZ * deltaZ);
+      const maxDelta = accel * maxSpeed * dt;
+      if (deltaLen > maxDelta) {
+        const scale = maxDelta / deltaLen;
+        deltaX *= scale;
+        deltaZ *= scale;
+      }
+      player.velocity.x += deltaX;
+      player.velocity.z += deltaZ;
+
+      if (!player.grounded) {
+        player.velocity.x *= (1 - airControl * dt);
+        player.velocity.z *= (1 - airControl * dt);
+      }
+    } else if (player.grounded) {
+      const spd = Math.sqrt(player.velocity.x * player.velocity.x + player.velocity.z * player.velocity.z);
+      if (spd > 0) {
+        const drop = friction * dt;
+        const ratio = Math.max(0, spd - drop) / spd;
+        player.velocity.x *= ratio;
+        player.velocity.z *= ratio;
+      }
+    }
+  }
+
+  _processPlayerMovement(player, dt) {
+    this._applyServerMovement(player, dt);
+
+    const gravity = -20;
+    if (!player.grounded) {
+      player.velocity.y += gravity * dt;
+      if (player.velocity.y < -30) player.velocity.y = -30;
+    }
+
+    player.position.x += player.velocity.x * dt;
+    player.position.z += player.velocity.z * dt;
+    player.position.y += player.velocity.y * dt;
 
     const halfBounds = this.mapData.bounds.size / 2 - 1;
     player.position.x = Math.max(-halfBounds, Math.min(halfBounds, player.position.x));
     player.position.z = Math.max(-halfBounds, Math.min(halfBounds, player.position.z));
 
-    if (inputs.jump && player.grounded) {
-      player.velocity.y = 6;
-      player.grounded = false;
-    }
+    const height = 1.8;
+    const bottomY = 0;
 
     if (inputs.crouch) {
       player.position.y = 0.6;
@@ -199,15 +250,15 @@ export class GameRoom {
       player.position.y = player.grounded ? 0.9 : player.position.y;
     }
 
-    const gravity = -20;
-    if (!player.grounded) {
-      player.velocity.y += gravity * dt;
-      player.position.y += player.velocity.y * dt;
-      if (player.position.y <= 0.9) {
-        player.position.y = 0.9;
-        player.velocity.y = 0;
-        player.grounded = true;
-      }
+    if (player.velocity.y <= 0 && player.position.y <= 0.9) {
+      player.position.y = 0.9;
+      player.velocity.y = 0;
+      player.grounded = true;
+    }
+
+    if (inputs.jump && player.grounded) {
+      player.velocity.y = 8.0;
+      player.grounded = false;
     }
   }
 
