@@ -477,7 +477,16 @@ class Game {
     this._SERVER_URL = SERVER_URL;
 
     this.core.eventBus.on('lobby:direct_connect', ({ ip, name, statusEl }) => {
-      const url = ip.includes('://') ? ip : `ws://${ip}/ws`;
+      let cleanIp = ip.includes('://') ? ip : `ws://${ip}`;
+      if (!cleanIp.match(/:\d+\/ws$/)) {
+        cleanIp = cleanIp.replace(/\/+$/, '');
+        if (cleanIp.match(/:\d+$/)) {
+          cleanIp += '/ws';
+        } else {
+          cleanIp += ':3001/ws';
+        }
+      }
+      const url = cleanIp;
       const nm = this.network.networkManager;
       if (nm.isConnected()) nm.disconnect();
       this._multiHost = false;
