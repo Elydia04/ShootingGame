@@ -49,6 +49,7 @@ export class AudioManager {
       this.listener = this.context.listener;
       this.generateDefaultSounds();
       this.initialized = true;
+      this.loadRealSounds();
       console.log('[AudioManager] Initialized');
     } catch (e) {
       console.warn('[AudioManager] Failed to initialize:', e);
@@ -56,7 +57,7 @@ export class AudioManager {
   }
 
   async loadClip(name, url, volume = 1.0, pitch = 1.0) {
-    if (!this.initialized) return;
+    if (!this.context) return;
 
     try {
       const response = await fetch(url);
@@ -266,6 +267,20 @@ export class AudioManager {
       d[i] = (n * fast + last * slow) / (fast + slow + 0.001) * env;
     }
     return buf;
+  }
+
+  async loadRealSounds() {
+    const sounds = [
+      { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0 },
+      { name: 'gunshot_pistol', file: 'sounds/pistol_shot.wav', vol: 0.45, pitch: 1.0 },
+      { name: 'gunshot_smg', file: 'sounds/smg_shot.wav', vol: 0.4, pitch: 1.0 },
+      { name: 'gunshot_shotgun', file: 'sounds/shotgun_shot.wav', vol: 0.55, pitch: 1.0 },
+    ];
+    const results = await Promise.allSettled(
+      sounds.map(s => this.loadClip(s.name, s.file, s.vol, s.pitch))
+    );
+    const loaded = results.filter(r => r.status === 'fulfilled').length;
+    if (loaded > 0) console.log(`[AudioManager] Loaded ${loaded}/${sounds.length} real sound files`);
   }
 
   generateDefaultSounds() {
