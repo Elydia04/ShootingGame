@@ -35,6 +35,13 @@ export class InputManager {
   }
 
   _setupKeyboard() {
+    // Capture-phase handler stops Chrome Ctrl+ shortcuts before they reach browser chrome
+    window.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        e.preventDefault();
+      }
+    }, { capture: true });
+
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.code === 'ControlLeft' || e.code === 'ControlRight') {
         e.preventDefault();
