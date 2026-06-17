@@ -32,8 +32,13 @@ export class PauseManager {
   requestPointerLock() {
     try {
       this.game.renderer.domElement.requestPointerLock();
-    } catch (e) {
-      // Browser may reject if called too soon after exitPointerLock
+    } catch {
+      if (!this._lockRetryTimer) {
+        this._lockRetryTimer = setTimeout(() => {
+          this._lockRetryTimer = null;
+          try { this.game.renderer.domElement.requestPointerLock(); } catch {}
+        }, 200);
+      }
     }
   }
 
