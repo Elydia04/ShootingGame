@@ -1,7 +1,15 @@
+const QUALITY_PRESETS = {
+  low: { shadows: false, shadowResolution: 0, pixelRatio: 0.75, toneMapping: 'none', fog: false, resolutionScale: 0.75 },
+  medium: { shadows: true, shadowResolution: 512, pixelRatio: 1.0, toneMapping: 'reinhard', fog: true, resolutionScale: 1.0 },
+  high: { shadows: true, shadowResolution: 1024, pixelRatio: 1.5, toneMapping: 'reinhard', fog: true, resolutionScale: 1.0 },
+  ultra: { shadows: true, shadowResolution: 2048, pixelRatio: 2.0, toneMapping: 'aces', fog: true, resolutionScale: 1.0 }
+};
+
 export class SettingsMenu {
-  constructor(settingsManager, { onBackToPause } = {}) {
+  constructor(settingsManager, { onBackToPause, onApply } = {}) {
     this.settings = settingsManager;
     this.onBackToPause = onBackToPause;
+    this.onApply = onApply;
     this.visible = false;
     this.currentTab = 'graphics';
     this.screen = document.getElementById('settings-screen');
@@ -70,10 +78,27 @@ export class SettingsMenu {
     }
   }
 
+  _applyPreset(preset) {
+    const p = QUALITY_PRESETS[preset];
+    if (!p) return;
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    };
+    setVal('setting-shadows', p.shadows ? 'true' : 'false');
+    setVal('setting-shadow-res', String(p.shadowResolution));
+    setVal('setting-pixel-ratio', String(p.pixelRatio));
+    setVal('setting-tone-map', p.toneMapping);
+    setVal('setting-fog', p.fog ? 'true' : 'false');
+    setVal('setting-res-scale', String(Math.round(p.resolutionScale * 100)));
+    const resLabel = document.getElementById('res-scale-value');
+    if (resLabel) resLabel.textContent = `${Math.round(p.resolutionScale * 100)}%`;
+  }
+
   _renderGraphics() {
     this.panel.innerHTML = `
       <div class="settings-group">
-        <label>Quality</label>
+        <label>Quality Preset</label>
         <select id="setting-quality">
           <option value="low" ${this.settings.get('graphics', 'quality') === 'low' ? 'selected' : ''}>Low</option>
           <option value="medium" ${this.settings.get('graphics', 'quality') === 'medium' ? 'selected' : ''}>Medium</option>
@@ -89,6 +114,40 @@ export class SettingsMenu {
         </select>
       </div>
       <div class="settings-group">
+        <label>Shadow Resolution</label>
+        <select id="setting-shadow-res">
+          <option value="0" ${this.settings.get('graphics', 'shadowResolution') === 0 ? 'selected' : ''}>Off</option>
+          <option value="512" ${this.settings.get('graphics', 'shadowResolution') === 512 ? 'selected' : ''}>512</option>
+          <option value="1024" ${this.settings.get('graphics', 'shadowResolution') === 1024 ? 'selected' : ''}>1024</option>
+          <option value="2048" ${this.settings.get('graphics', 'shadowResolution') === 2048 ? 'selected' : ''}>2048</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label>Pixel Ratio</label>
+        <select id="setting-pixel-ratio">
+          <option value="0.5" ${this.settings.get('graphics', 'pixelRatio') === 0.5 ? 'selected' : ''}>0.5x</option>
+          <option value="0.75" ${this.settings.get('graphics', 'pixelRatio') === 0.75 ? 'selected' : ''}>0.75x</option>
+          <option value="1.0" ${this.settings.get('graphics', 'pixelRatio') === 1.0 ? 'selected' : ''}>1.0x</option>
+          <option value="1.5" ${this.settings.get('graphics', 'pixelRatio') === 1.5 ? 'selected' : ''}>1.5x</option>
+          <option value="2.0" ${this.settings.get('graphics', 'pixelRatio') === 2.0 ? 'selected' : ''}>2.0x</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label>Tone Mapping</label>
+        <select id="setting-tone-map">
+          <option value="none" ${this.settings.get('graphics', 'toneMapping') === 'none' ? 'selected' : ''}>None</option>
+          <option value="reinhard" ${this.settings.get('graphics', 'toneMapping') === 'reinhard' ? 'selected' : ''}>Reinhard</option>
+          <option value="aces" ${this.settings.get('graphics', 'toneMapping') === 'aces' ? 'selected' : ''}>ACES</option>
+        </select>
+      </div>
+      <div class="settings-group">
+        <label>Fog</label>
+        <select id="setting-fog">
+          <option value="true" ${this.settings.get('graphics', 'fog') ? 'selected' : ''}>Enabled</option>
+          <option value="false" ${!this.settings.get('graphics', 'fog') ? 'selected' : ''}>Disabled</option>
+        </select>
+      </div>
+      <div class="settings-group">
         <label>Resolution Scale: <span class="range-value" id="res-scale-value">${Math.round(this.settings.get('graphics', 'resolutionScale') * 100)}%</span></label>
         <input type="range" id="setting-res-scale" min="50" max="200" value="${Math.round(this.settings.get('graphics', 'resolutionScale') * 100)}">
       </div>
@@ -97,6 +156,10 @@ export class SettingsMenu {
         <input type="range" id="setting-fov" min="60" max="120" value="${this.settings.get('graphics', 'fov')}">
       </div>
     `;
+
+    document.getElementById('setting-quality')?.addEventListener('change', (e) => {
+      this._applyPreset(e.target.value);
+    });
 
     this._bindRange('res-scale-value', 'setting-res-scale');
     this._bindRange('fov-value', 'setting-fov');
@@ -214,6 +277,18 @@ export class SettingsMenu {
     const shadows = getVal('setting-shadows');
     if (shadows) this.settings.set('graphics', 'shadows', shadows === 'true');
 
+    const shadowRes = getVal('setting-shadow-res');
+    if (shadowRes) this.settings.set('graphics', 'shadowResolution', parseInt(shadowRes));
+
+    const pixelRatio = getVal('setting-pixel-ratio');
+    if (pixelRatio) this.settings.set('graphics', 'pixelRatio', parseFloat(pixelRatio));
+
+    const toneMapping = getVal('setting-tone-map');
+    if (toneMapping) this.settings.set('graphics', 'toneMapping', toneMapping);
+
+    const fog = getVal('setting-fog');
+    if (fog) this.settings.set('graphics', 'fog', fog === 'true');
+
     const resScale = getVal('setting-res-scale');
     if (resScale) this.settings.set('graphics', 'resolutionScale', parseInt(resScale) / 100);
 
@@ -235,6 +310,7 @@ export class SettingsMenu {
     const musicVol = getVal('setting-music-vol');
     if (musicVol) this.settings.set('audio', 'musicVolume', parseInt(musicVol) / 100);
 
+    this.onApply?.();
     this.hide();
     console.log('[Settings] Saved');
   }

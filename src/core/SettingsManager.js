@@ -2,7 +2,11 @@ const DEFAULTS = {
   graphics: {
     quality: 'medium',
     shadows: true,
+    shadowResolution: 1024,
     resolutionScale: 1.0,
+    pixelRatio: 1.0,
+    toneMapping: 'reinhard',
+    fog: true,
     fov: 75,
     vsync: true
   },

@@ -244,6 +244,7 @@ export class MapManager {
       dir.castShadow = true;
       dir.shadow.mapSize.width = 1024;
       dir.shadow.mapSize.height = 1024;
+      this.scene.userData.dirLight = dir;
       dir.shadow.camera.near = 0.5;
       dir.shadow.camera.far = 200;
       dir.shadow.camera.left = -100;

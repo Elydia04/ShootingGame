@@ -166,7 +166,8 @@ class Game {
     this.scoreboardUI = new ScoreboardUI(this.scoreboardStore);
 
     this.ui.settingsMenu = new SettingsMenu(this.core.settingsManager, {
-      onBackToPause: () => { if (this.paused) this.pauseManager.pause(); }
+      onBackToPause: () => { if (this.paused) this.pauseManager.pause(); },
+      onApply: () => this._applyGraphicsSettings()
     });
 
     this.inputManager = new InputManager(this);
@@ -190,11 +191,9 @@ class Game {
       powerPreference: 'high-performance'
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = this.core.settingsManager.get('graphics', 'shadows');
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping = THREE.ReinhardToneMapping;
     this.renderer.toneMappingExposure = 1.0;
+    this._applyGraphicsSettings();
 
     const container = document.getElementById('game-canvas-container');
     container.appendChild(this.renderer.domElement);
@@ -205,6 +204,38 @@ class Game {
     this.scene.add(ambient);
     const hemi = new THREE.HemisphereLight(0x87ceeb, 0x362d22, 0.4);
     this.scene.add(hemi);
+  }
+
+  _applyGraphicsSettings() {
+    const gfx = this.core.settingsManager.get('graphics');
+
+    this.renderer.setPixelRatio(Math.min(gfx.pixelRatio || 1, window.devicePixelRatio));
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const toneMapMap = { none: THREE.NoToneMapping, reinhard: THREE.ReinhardToneMapping, aces: THREE.ACESFilmicToneMapping };
+    this.renderer.toneMapping = toneMapMap[gfx.toneMapping] || THREE.ReinhardToneMapping;
+
+    const shadowsEnabled = gfx.shadows && gfx.shadowResolution > 0;
+    this.renderer.shadowMap.enabled = shadowsEnabled;
+    if (shadowsEnabled) {
+      const dirLight = this.scene?.userData?.dirLight;
+      if (dirLight) {
+        dirLight.shadow.mapSize.width = gfx.shadowResolution;
+        dirLight.shadow.mapSize.height = gfx.shadowResolution;
+        dirLight.shadow.map?.dispose?.();
+      }
+    }
+
+    if (this.scene) {
+      if (gfx.fog && this.systems.mapManager?.currentMap) {
+        const mapData = this.systems.mapManager.getMapData();
+        if (mapData?.skybox) {
+          this.scene.fog = new THREE.Fog(mapData.skybox.color || 0x87ceeb, mapData.skybox.fogNear || 50, mapData.skybox.fogFar || 200);
+        }
+      } else if (!gfx.fog) {
+        this.scene.fog = null;
+      }
+    }
   }
 
   getCollidables() {
