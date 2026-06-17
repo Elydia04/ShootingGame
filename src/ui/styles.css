@@ -1007,47 +1007,93 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Scoreboard */
-.scoreboard {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(0, 0, 0, 0.85);
-  border: 1px solid #444;
-  border-radius: 8px;
-  padding: 16px 24px;
-  min-width: 400px;
+/* Scoreboard — Valorant-style overlay */
+.sb-overlay {
+  position: fixed;
+  inset: 0;
   z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
+  background: rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
 }
-.scoreboard-header {
+.sb-overlay.sb-visible {
+  opacity: 1;
+  transition: opacity 0.1s ease-out;
+}
+.sb-overlay.sb-hidden {
+  opacity: 0;
+  transition: opacity 0.15s ease-in;
+}
+
+.sb-panel {
+  width: 560px;
+  max-width: 90vw;
+  background: rgba(10, 10, 20, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 16px 20px 12px;
+  transform: translateY(6px) scale(0.97);
+  transition: transform 0.12s ease-out;
+}
+.sb-visible .sb-panel {
+  transform: translateY(0) scale(1);
+  transition: transform 0.1s ease-out;
+}
+.sb-hidden .sb-panel {
+  transform: translateY(8px) scale(0.96);
+  transition: transform 0.15s ease-in;
+}
+
+.sb-header {
   display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 2px solid #555;
-  color: #aaa;
-  font-size: 0.85rem;
+  padding: 0 4px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.7rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05rem;
+  letter-spacing: 0.08rem;
 }
-.scoreboard-header span { flex: 1; text-align: center; }
-.scoreboard-header span:first-child { flex: 2; text-align: left; }
-.scoreboard-rows { margin-top: 4px; }
-.scoreboard-row {
+.sb-header span { flex: 1; text-align: center; }
+.sb-h-name { flex: 2.2 !important; text-align: left !important; }
+.sb-h-team { flex: 0.7 !important; }
+
+.sb-body { margin-top: 2px; }
+
+.sb-row {
   display: flex;
-  justify-content: space-between;
-  padding: 6px 0;
-  border-bottom: 1px solid #333;
-  font-size: 0.9rem;
+  padding: 6px 4px;
+  border-radius: 4px;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.15s;
 }
-.scoreboard-row:last-child { border-bottom: none; }
-.scoreboard-row span { flex: 1; text-align: center; }
-.scoreboard-row span:first-child { flex: 2; text-align: left; }
-.scoreboard-row.local { color: #4a9eff; font-weight: bold; }
-.scoreboard-row .sb-name.team-ct { color: #4a9eff; }
-.scoreboard-row .sb-name.team-t { color: #e74c3c; }
-.scoreboard-row .sb-team { font-size: 0.75rem; color: #888; text-transform: uppercase; }
+.sb-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.sb-row span { flex: 1; text-align: center; }
+.sb-c-name { flex: 2.2 !important; text-align: left !important; font-weight: 500; }
+.sb-c-team { flex: 0.7 !important; font-size: 0.75rem; color: rgba(255, 255, 255, 0.35); text-transform: uppercase; letter-spacing: 0.04rem; }
+.sb-c-kills { color: rgba(255, 255, 255, 0.85); font-weight: 600; }
+.sb-c-deaths { color: rgba(255, 255, 255, 0.45); }
+.sb-c-score { color: #f3c35b; font-weight: 600; }
+.sb-c-ping { color: rgba(255, 255, 255, 0.35); font-size: 0.8rem; }
+
+.sb-row.sb-local {
+  background: rgba(74, 158, 255, 0.08);
+  box-shadow: inset 2px 0 0 #4a9eff;
+}
+.sb-row.sb-local .sb-c-name { color: #4a9eff; font-weight: 700; }
+.sb-row.sb-local:hover { background: rgba(74, 158, 255, 0.12); }
+
+.sb-c-name.team-ct { color: #4a9eff; }
+.sb-c-name.team-t { color: #e74c3c; }
+.sb-row.sb-local .sb-c-name.team-ct { color: #6ab4ff; }
+.sb-row.sb-local .sb-c-name.team-t { color: #ff6b6b; }
 
 /* Death Screen */
 .death-screen {

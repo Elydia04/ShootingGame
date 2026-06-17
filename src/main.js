@@ -23,6 +23,8 @@ import { InterpolationManager } from './network/InterpolationManager.js';
 import { RemotePlayer } from './player/RemotePlayer.js';
 import { UIManager } from './ui/UIManager.js';
 import { HUD } from './ui/HUD.js';
+import { ScoreboardStore } from './ui/ScoreboardStore.js';
+import { ScoreboardUI } from './ui/ScoreboardUI.js';
 import { SettingsMenu } from './ui/SettingsMenu.js';
 import { forestMap } from '../maps/forest_map/index.js';
 import { cityMap } from '../maps/city_map/index.js';
@@ -65,7 +67,7 @@ class Game {
     this._remoteInterp = new Map();
     this._multiNetworkReady = false;
 
-    this._scoreboardVisible = false;
+    this.scoreboardStore = new ScoreboardStore();
 
     this.errorOverlay = new ErrorOverlay();
     this.inputManager = null;
@@ -154,8 +156,10 @@ class Game {
     this.network.networkManager = new NetworkManager();
     this.network.interpolation = new InterpolationManager();
 
-    this.ui.hud = new HUD(this.core.eventBus);
+    this.ui.hud = new HUD(this.core.eventBus, this.scoreboardStore);
     this.ui.hud.hide();
+
+    this.scoreboardUI = new ScoreboardUI(this.scoreboardStore);
 
     this.ui.settingsMenu = new SettingsMenu(this.core.settingsManager, {
       onBackToPause: () => { if (this.paused) this.pauseManager.pause(); }
@@ -779,6 +783,16 @@ class Game {
       if (state.kills != null) {
         if (!this._rawScoreboardStats) this._rawScoreboardStats = new Map();
         this._rawScoreboardStats.set(id, { kills: state.kills, deaths: state.deaths, score: state.score });
+        const isLocal = id === this._multiLocalId;
+        this.scoreboardStore.updatePlayer(id, {
+          name: isLocal ? 'You' : (state.name || id),
+          team: state.team || '',
+          kills: state.kills,
+          deaths: state.deaths,
+          score: state.score ?? state.kills * 100,
+          ping: isLocal ? this._multiPing : '-',
+          local: isLocal
+        });
       }
     }
 
@@ -882,6 +896,17 @@ class Game {
     if (victim) { victim.deaths++; } else {
       this._scoreboardStats.set(data.victim, { name: data.victimName, kills: 0, deaths: 1, team: data.victimTeam });
     }
+
+    const killerLocal = data.killer === this._multiLocalId;
+    const victimLocal = data.victim === this._multiLocalId;
+    this.scoreboardStore.updatePlayer(data.killer, {
+      kills: (killer?.kills ?? 1),
+      local: killerLocal
+    });
+    this.scoreboardStore.updatePlayer(data.victim, {
+      deaths: (victim?.deaths ?? 1),
+      local: victimLocal
+    });
   }
 
   _endMultiMatch(data) {
@@ -1052,8 +1077,8 @@ class Game {
       if (this.network.networkManager.isConnected()) { this.network.networkManager.disconnect(); }
       this._scoreboardStats = new Map();
       this._rawScoreboardStats = new Map();
+      this.scoreboardStore.clear();
       this._multiPing = 0;
-      this._scoreboardVisible = false;
       this.playerHealth = this.playerMaxHealth;
       this.playerAlive = true;
     });
@@ -1378,23 +1403,13 @@ class Game {
     }
   }
 
-  _updateScoreboardData() {
+  _buildScoreboardStats() {
     const rows = [];
-    const localStats = this.systems.matchManager.getPlayerStats('local');
-    rows.push({ name: 'You', kills: localStats?.kills || 0, deaths: localStats?.deaths || 0, score: localStats?.score || 0, ping: '-', local: true });
-    for (const bot of this.bots) {
-      rows.push({ name: bot.name, kills: bot.kills || 0, deaths: bot.deaths || 0, score: bot.kills * 100 || 0, ping: '-', local: false });
-    }
-    this._scoreboardData = rows;
-  }
-
-  _updateMultiScoreboardData() {
-    const rows = [];
-    const now = performance.now();
     for (const [id, stats] of this._scoreboardStats) {
       const isLocal = id === this._multiLocalId;
       const rawStats = this._rawScoreboardStats?.get(id);
       rows.push({
+        id,
         name: isLocal ? 'You' : (stats.name || id),
         team: stats.team || '',
         kills: rawStats?.kills ?? stats.kills,
@@ -1408,26 +1423,43 @@ class Game {
       if (a.team !== b.team) return a.team < b.team ? -1 : 1;
       return b.score - a.score;
     });
-    this._scoreboardData = rows;
+    return rows;
   }
 
   _showScoreboard() {
-    this._scoreboardVisible = true;
-    this._refreshScoreboard();
+    if (this.gameMode === 'multi') {
+      const rows = this._buildScoreboardStats();
+      this.scoreboardStore.setPlayers(rows);
+    } else {
+      const rows = [{
+        id: 'local',
+        name: 'Player',
+        kills: this._soloStats?.kills ?? 0,
+        deaths: this._soloStats?.deaths ?? 0,
+        score: this._soloStats?.score ?? 0,
+        team: '',
+        ping: '-',
+        local: true
+      }];
+      for (const bot of this.bots) {
+        rows.push({
+          id: 'bot_' + (bot.id || Math.random()),
+          name: bot.name,
+          kills: bot.kills || 0,
+          deaths: bot.deaths || 0,
+          score: (bot.kills || 0) * 100,
+          team: '',
+          ping: '-',
+          local: false
+        });
+      }
+      this.scoreboardStore.setPlayers(rows);
+    }
+    this.scoreboardStore.setVisible(true);
   }
 
   _hideScoreboard() {
-    this._scoreboardVisible = false;
-    this.ui.hud.hideScoreboard();
-  }
-
-  _refreshScoreboard() {
-    if (this.gameMode === 'multi') {
-      this._updateMultiScoreboardData();
-    } else {
-      this._updateScoreboardData();
-    }
-    this.ui.hud.showScoreboard(this._scoreboardData);
+    this.scoreboardStore.setVisible(false);
   }
 
   _updateRemoteInterpolation(deltaTime) {
@@ -1487,7 +1519,6 @@ class Game {
       this._updateCoreSystems(rawDelta);
       this._updateNetwork(rawDelta);
       this._updateRemoteInterpolation(rawDelta);
-      if (this._scoreboardVisible) this._refreshScoreboard();
       this._render();
 
       this.core.debugTools.setBullets(this.systems.bulletPool.activeCount);

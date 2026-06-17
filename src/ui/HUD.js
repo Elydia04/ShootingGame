@@ -1,6 +1,7 @@
 export class HUD {
-  constructor(eventBus) {
+  constructor(eventBus, scoreboardStore) {
     this.eventBus = eventBus;
+    this.scoreboardStore = scoreboardStore;
     this.elements = this._cacheElements();
     this.vignetteTimer = null;
     this.hitMarkerTimer = null;
@@ -38,8 +39,6 @@ export class HUD {
       crosshairBottom: document.querySelector('#crosshair .crosshair-line.bottom'),
       crosshairLeft: document.querySelector('#crosshair .crosshair-line.left'),
       crosshairRight: document.querySelector('#crosshair .crosshair-line.right'),
-      scoreboard: document.getElementById('scoreboard'),
-      scoreboardRows: document.getElementById('scoreboard-rows'),
       deathScreen: document.getElementById('death-screen'),
       deathInfo: document.getElementById('death-info'),
       deathRespawnTimer: document.getElementById('death-respawn-timer'),
@@ -304,29 +303,14 @@ export class HUD {
     }
   }
 
-  // --- Scoreboard ---
+  // --- Scoreboard (delegated to ScoreboardUI) ---
   showScoreboard(stats) {
-    if (!this.elements.scoreboard || !this.elements.scoreboardRows) return;
-    const rows = stats.map(s => {
-      const teamClass = s.team ? ' team-' + s.team.toLowerCase() : '';
-      return `
-      <div class="scoreboard-row${s.local ? ' local' : ''}${teamClass}">
-        <span class="sb-name${teamClass}">${s.name}</span>
-        <span class="sb-team">${s.team || '-'}</span>
-        <span>${s.kills}</span>
-        <span>${s.deaths}</span>
-        <span>${s.score}</span>
-        <span>${s.ping}</span>
-      </div>`;
-    }).join('');
-    this.elements.scoreboardRows.innerHTML = rows;
-    this.elements.scoreboard.classList.remove('hidden');
+    this.scoreboardStore.setPlayers(stats);
+    this.scoreboardStore.setVisible(true);
   }
 
   hideScoreboard() {
-    if (this.elements.scoreboard) {
-      this.elements.scoreboard.classList.add('hidden');
-    }
+    this.scoreboardStore.setVisible(false);
   }
 
   // --- Death Screen ---
@@ -391,7 +375,8 @@ export class HUD {
     el.textContent = isHeadshot ? `✖${Math.round(damage)}` : Math.round(damage);
     el.style.left = screenPos.x + 'px';
     el.style.top = screenPos.y + 'px';
-    document.getElementById('game-hud').appendChild(el);
+    const parent = document.getElementById('game-hud') || document.getElementById('app') || document.body;
+    parent.appendChild(el);
     setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 800);
   }
 

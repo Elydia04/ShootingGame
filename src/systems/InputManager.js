@@ -46,11 +46,7 @@ export class InputManager {
       if (e.code === 'Tab') {
         e.preventDefault();
         if (this.game.core.gameStateManager.is(States.PLAYING)) {
-          if (this.game._scoreboardVisible) {
-            this.game._hideScoreboard();
-          } else {
-            this.game._showScoreboard();
-          }
+          this.game._showScoreboard();
         }
       }
 
@@ -116,6 +112,9 @@ export class InputManager {
 
     document.addEventListener('keyup', (e) => {
       this._keys.delete(e.code);
+      if (e.code === 'Tab' && this.game.core.gameStateManager.is(States.PLAYING)) {
+        this.game._hideScoreboard();
+      }
     });
 
     document.addEventListener('blur', () => {
