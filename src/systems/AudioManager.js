@@ -191,93 +191,97 @@ export class AudioManager {
     }
   }
 
+  // Micro-ramp attack (3ms) and release (last 15% fade-out) for click-free immersive audio
+  _envelope(i, len, rate) {
+    const dur = len / rate;
+    const atk = Math.min(0.003, dur * 0.1);
+    const rel = Math.min(0.005, dur * 0.15);
+    const t = i / rate;
+    let env = 1;
+    if (t < atk) env = t / atk;
+    const relStart = dur - rel;
+    if (t > relStart) env *= (dur - t) / rel;
+    return env;
+  }
+
   _generateNoise(duration, decayRate = 10, highFreq = true) {
-    const sampleRate = this.context.sampleRate;
-    const length = Math.floor(sampleRate * duration);
-    const buffer = this.context.createBuffer(1, length, sampleRate);
-    const data = buffer.getChannelData(0);
+    const sr = this.context.sampleRate;
+    const len = Math.floor(sr * duration);
+    const buf = this.context.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
     let last = 0;
-    for (let i = 0; i < length; i++) {
-      const t = i / sampleRate;
-      const envelope = Math.exp(-t * decayRate);
-      let noise = Math.random() * 2 - 1;
-      if (!highFreq) {
-        last += (noise - last) * 0.3;
-        noise = last;
-      }
-      data[i] = noise * envelope;
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      const env = this._envelope(i, len, sr) * Math.exp(-t * decayRate);
+      let n = Math.random() * 2 - 1;
+      if (!highFreq) { last += (n - last) * 0.3; n = last; }
+      d[i] = n * env;
     }
-    return buffer;
+    return buf;
   }
 
   _generateTone(frequency, duration, type = 'sine') {
-    const sampleRate = this.context.sampleRate;
-    const length = Math.floor(sampleRate * duration);
-    const buffer = this.context.createBuffer(1, length, sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) {
-      const t = i / sampleRate;
-      const envelope = Math.exp(-t * 5);
-      let sample = 0;
-      if (type === 'sine') {
-        sample = Math.sin(2 * Math.PI * frequency * t);
-      } else if (type === 'square') {
-        sample = Math.sin(2 * Math.PI * frequency * t) > 0 ? 1 : -1;
-      } else if (type === 'sawtooth') {
-        sample = 2 * ((frequency * t) % 1) - 1;
-      }
-      data[i] = sample * envelope;
+    const sr = this.context.sampleRate;
+    const len = Math.floor(sr * duration);
+    const buf = this.context.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      const env = this._envelope(i, len, sr) * Math.exp(-t * 5);
+      let s = 0;
+      if (type === 'sine') s = Math.sin(2 * Math.PI * frequency * t);
+      else if (type === 'square') s = Math.sin(2 * Math.PI * frequency * t) > 0 ? 1 : -1;
+      else if (type === 'sawtooth') s = 2 * ((frequency * t) % 1) - 1;
+      d[i] = s * env;
     }
-    return buffer;
+    return buf;
   }
 
   _generateFlyby() {
-    const sampleRate = this.context.sampleRate;
-    const length = Math.floor(sampleRate * 0.12);
-    const buffer = this.context.createBuffer(1, length, sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < length; i++) {
-      const t = i / sampleRate;
+    const sr = this.context.sampleRate;
+    const len = Math.floor(sr * 0.12);
+    const buf = this.context.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
       const freq = 3000 - t * 20000;
-      const envelope = Math.exp(-t * 15) * 0.5;
-      data[i] = Math.sin(2 * Math.PI * freq * t) * envelope;
+      d[i] = Math.sin(2 * Math.PI * freq * t) * this._envelope(i, len, sr) * Math.exp(-t * 15) * 0.5;
     }
-    return buffer;
+    return buf;
   }
 
   _generateGunshot(decayFast, decaySlow, mix) {
-    const sampleRate = this.context.sampleRate;
-    const length = Math.floor(sampleRate * 0.15);
-    const buffer = this.context.createBuffer(1, length, sampleRate);
-    const data = buffer.getChannelData(0);
+    const sr = this.context.sampleRate;
+    const len = Math.floor(sr * 0.15);
+    const buf = this.context.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
     let last = 0;
-    for (let i = 0; i < length; i++) {
-      const t = i / sampleRate;
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
       const fast = Math.exp(-t * decayFast) * mix;
       const slow = Math.exp(-t * decaySlow) * (1 - mix);
-      const envelope = fast + slow;
-      let noise = Math.random() * 2 - 1;
-      // Low-pass filter for the "boom" body
-      last += (noise - last) * 0.4;
-      data[i] = (noise * fast + last * slow) / (fast + slow + 0.001) * envelope;
+      const env = (fast + slow) * this._envelope(i, len, sr);
+      let n = Math.random() * 2 - 1;
+      last += (n - last) * 0.4;
+      d[i] = (n * fast + last * slow) / (fast + slow + 0.001) * env;
     }
-    return buffer;
+    return buf;
   }
 
   generateDefaultSounds() {
-    this.registerClip('gunshot_rifle', this._generateGunshot(60, 15, 0.7), 0.35, 1.0);
-    this.registerClip('gunshot_pistol', this._generateGunshot(50, 12, 0.6), 0.3, 1.4);
-    this.registerClip('gunshot_smg', this._generateGunshot(70, 18, 0.8), 0.25, 1.3);
-    this.registerClip('gunshot_shotgun', this._generateGunshot(40, 10, 0.5), 0.5, 0.9);
+    this.registerClip('gunshot_rifle', this._generateGunshot(60, 15, 0.7), 0.45, 1.0);
+    this.registerClip('gunshot_pistol', this._generateGunshot(50, 12, 0.6), 0.4, 1.4);
+    this.registerClip('gunshot_smg', this._generateGunshot(70, 18, 0.8), 0.35, 1.3);
+    this.registerClip('gunshot_shotgun', this._generateGunshot(40, 10, 0.5), 0.6, 0.9);
 
-    this.registerClip('footstep', this._generateNoise(0.06, 25, false), 0.25, 1.0);
-    this.registerClip('hit', this._generateNoise(0.05, 30, false), 0.4, 1.0);
-    this.registerClip('hit_leg', this._generateNoise(0.04, 25, false), 0.25, 0.8);
+    this.registerClip('footstep', this._generateNoise(0.06, 25, false), 0.3, 1.0);
+    this.registerClip('hit', this._generateNoise(0.05, 30, false), 0.5, 1.0);
+    this.registerClip('hit_leg', this._generateNoise(0.04, 25, false), 0.3, 0.8);
 
-    this.registerClip('reload', this._generateNoise(0.25, 6, false), 0.15, 1.0);
+    this.registerClip('reload', this._generateNoise(0.25, 6, false), 0.2, 1.0);
 
-    this.registerClip('knife_swing', this._generateNoise(0.06, 30, true), 0.35, 1.1);
-    this.registerClip('bullet_flyby', this._generateFlyby(), 0.3, 1.0);
+    this.registerClip('knife_swing', this._generateNoise(0.06, 30, true), 0.45, 1.1);
+    this.registerClip('bullet_flyby', this._generateFlyby(), 0.35, 1.0);
   }
 
   dispose() {
