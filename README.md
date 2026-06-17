@@ -2,6 +2,8 @@
 
 A browser-based 3D first-person shooter built with Three.js and Node.js — solo against bots or multiplayer with up to 8 players.
 
+**▶ [Play now at barilan.up.railway.app](https://barilan.up.railway.app/)**
+
 ## Features
 
 - **First-person shooter** — Mouse aim, WASD movement, scroll/slot weapons

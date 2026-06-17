@@ -93,16 +93,23 @@ function addTable(group, x, y, z) {
 
 function frontWallWithDoor(w, fH, wallThick, mat, d, glassMat) {
   const parts = [];
-  const fL = new THREE.Mesh(new THREE.BoxGeometry(w * 0.35, fH, wallThick), mat);
-  fL.position.set(-w * 0.33, fH / 2, d / 2);
+  const doorW = 0.9;
+  const doorH = 2.1;
+  // Side panels below door header — fill from wall edges to door frame
+  const sideW = (w - doorW) / 2;
+  const sideX = (w + doorW) / 4;
+  const fL = new THREE.Mesh(new THREE.BoxGeometry(sideW, doorH, wallThick), mat);
+  fL.position.set(-sideX, doorH / 2, d / 2);
   fL.castShadow = true; fL.receiveShadow = true; fL.userData.isMapObject = true;
   parts.push(fL);
-  const fR = new THREE.Mesh(new THREE.BoxGeometry(w * 0.35, fH, wallThick), mat);
-  fR.position.set(w * 0.33, fH / 2, d / 2);
+  const fR = new THREE.Mesh(new THREE.BoxGeometry(sideW, doorH, wallThick), mat);
+  fR.position.set(sideX, doorH / 2, d / 2);
   fR.castShadow = true; fR.receiveShadow = true; fR.userData.isMapObject = true;
   parts.push(fR);
-  const fT = new THREE.Mesh(new THREE.BoxGeometry(0.9, fH - 2.1, wallThick), mat);
-  fT.position.set(0, fH - (fH - 2.1) / 2, d / 2);
+  // Full-width top panel above door header
+  const topH = fH - doorH;
+  const fT = new THREE.Mesh(new THREE.BoxGeometry(w, topH, wallThick), mat);
+  fT.position.set(0, doorH + topH / 2, d / 2);
   fT.castShadow = true; fT.receiveShadow = true; fT.userData.isMapObject = true;
   parts.push(fT);
   return parts;
@@ -265,7 +272,7 @@ export class BuildingGenerator {
     sFR.castShadow = true; sFR.receiveShadow = true; sFR.userData.isMapObject = true;
     group.add(sFR);
     const sFM = new THREE.Mesh(new THREE.BoxGeometry(1.6, sH - 2.1, wallThick), wallMat);
-    sFM.position.set(0, sY - (sH - 2.1) / 2 + gH, d / 2);
+    sFM.position.set(0, gH + 2.1 + (sH - 2.1) / 2, d / 2);
     sFM.castShadow = true; sFM.receiveShadow = true; sFM.userData.isMapObject = true;
     group.add(sFM);
 
@@ -287,7 +294,7 @@ export class BuildingGenerator {
     // === Rooftop with overhang ===
     const overhang = 1.0;
     const rFloor = new THREE.Mesh(new THREE.BoxGeometry(w + overhang * 2, 0.15, d + overhang * 2), brickMat);
-    rFloor.position.set(0, gH + sH, 0);
+    rFloor.position.set(0, gH + sH + 0.075, 0);
     // floor slab — visual only
     group.add(rFloor);
 
@@ -423,7 +430,7 @@ export class BuildingGenerator {
 
     // Flat roof with overhang
     const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 1.0, 0.15, d + 1.0), roofMat);
-    roof.position.set(0, floors * floorH, 0);
+    roof.position.set(0, floors * floorH + 0.075, 0);
     // flat roof — visual only
     group.add(roof);
 
@@ -521,7 +528,7 @@ export class BuildingGenerator {
     // Roof (pyramid with wider overhang)
     const roofH = 2.0;
     const roof = new THREE.Mesh(
-      new THREE.ConeGeometry(Math.sqrt(w * w + d * d) * 0.4, roofH, 4), roofMat
+      new THREE.ConeGeometry(Math.sqrt(w * w + d * d) * 0.6, roofH, 4), roofMat
     );
     roof.position.set(0, wallH + roofH / 2, 0);
     roof.rotation.y = Math.PI / 4;
