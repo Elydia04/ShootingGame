@@ -824,15 +824,14 @@ class Game {
         continue;
       }
 
+      const pos = { x: state.position.x, y: state.position.y || 0.9, z: state.position.z };
+      const rot = state.euler ? { x: state.euler.x || 0, y: state.euler.y || 0 } : undefined;
+
       if (!interp.trackedEntities.has(id)) {
-        interp.addEntity(id, {
-          position: { x: state.position.x, y: state.position.y || 0.9, z: state.position.z }
-        });
+        interp.addEntity(id, { position: pos, rotation: rot });
       }
 
-      interp.updateEntity(id, {
-        position: { x: state.position.x, y: state.position.y || 0.9, z: state.position.z }
-      });
+      interp.updateEntity(id, { position: pos, rotation: rot });
 
       let rp = this.remotePlayers.find(p => p.id === id);
       if (!rp) {
@@ -915,8 +914,8 @@ class Game {
     const yaw = input.euler?.y || 0;
     const sinY = Math.sin(yaw);
     const cosY = Math.cos(yaw);
-    pos.x += (forward * sinY + strafe * cosY) * speed * dt;
-    pos.z += (forward * cosY - strafe * sinY) * speed * dt;
+    pos.x += (strafe * cosY - forward * sinY) * speed * dt;
+    pos.z += (-forward * cosY - strafe * sinY) * speed * dt;
   }
 
   _handleMultiSpawn(data) {}
@@ -1610,6 +1609,9 @@ class Game {
       const state = this.network.interpolation.getRenderState(rp.id);
       if (state?.position) {
         rp.group.position.set(state.position.x, state.position.y, state.position.z);
+      }
+      if (state?.rotation) {
+        rp.group.rotation.y = state.rotation.y;
       }
     }
   }

@@ -178,8 +178,8 @@ export class GameRoom {
     const strafe = inputs.right ? 1 : inputs.left ? -1 : 0;
     const yaw = player.euler.y;
 
-    const moveX = (forward * Math.sin(yaw) + strafe * Math.cos(yaw)) * speed * dt;
-    const moveZ = (forward * Math.cos(yaw) - strafe * Math.sin(yaw)) * speed * dt;
+    const moveX = (strafe * Math.cos(yaw) - forward * Math.sin(yaw)) * speed * dt;
+    const moveZ = (-forward * Math.cos(yaw) - strafe * Math.sin(yaw)) * speed * dt;
 
     player.position.x += moveX;
     player.position.z += moveZ;
