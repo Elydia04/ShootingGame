@@ -108,6 +108,24 @@ wss.on('connection', (ws) => {
         if (currentRoom) currentRoom.setReady(playerId, msg.data?.ready ?? true);
         break;
       }
+      case 'join_available_room': {
+        let targetRoom = null;
+        for (const [, room] of rooms) {
+          if (room.state === 'lobby' && room.players.size < 8) {
+            targetRoom = room;
+            break;
+          }
+        }
+        if (!targetRoom) {
+          ws.send(JSON.stringify({ type: 'error', data: { message: 'No lobby available on this server' } }));
+          return;
+        }
+        targetRoom.addPlayer(playerId, msg.data?.name || 'Player', ws);
+        currentRoom = targetRoom;
+        const config = targetRoom.getConfig();
+        ws.send(JSON.stringify({ type: 'room_joined', data: { code: targetRoom.code, players: targetRoom.getPlayerList(), config } }));
+        break;
+      }
       case 'start_game': {
         if (currentRoom && currentRoom.hostId === playerId) {
           if (msg.data?.config) currentRoom.configure(msg.data.config);

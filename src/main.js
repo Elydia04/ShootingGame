@@ -478,8 +478,6 @@ class Game {
 
     this.core.eventBus.on('lobby:direct_connect', ({ ip, name, statusEl }) => {
       const url = ip.includes('://') ? ip : `ws://${ip}/ws`;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const defaultUrl = `${protocol}//${window.location.host}/ws`;
       const nm = this.network.networkManager;
       if (nm.isConnected()) nm.disconnect();
       this._multiHost = false;
@@ -492,20 +490,24 @@ class Game {
         statusEl.className = 'direct-connect-status error';
       }, 5000);
 
-      const unsub = nm.on('connected', () => {
+      const unsubConnected = nm.on('connected', () => {
         clearTimeout(timeout);
         if (timedOut) return;
-        statusEl.textContent = 'Connected!';
+        statusEl.textContent = 'Joining lobby...';
         statusEl.className = 'direct-connect-status success';
-        this.core.eventBus.emit('ui:show_screen', 'joinLobby');
-        unsub();
+        nm.send('join_available_room', { name });
+        unsubConnected();
       });
-      const unsubErr = nm.on('error', () => {
+      const unsubJoined = nm.on('room_joined', () => {
         clearTimeout(timeout);
-        if (timedOut) return;
-        statusEl.textContent = 'Connection failed — check firewall and verify the IP';
+        this.core.eventBus.emit('ui:show_screen', 'joinLobby');
+        unsubJoined();
+      });
+      const unsubError = this.core.eventBus.on('lobby:error', (msg) => {
+        clearTimeout(timeout);
+        statusEl.textContent = msg || 'Connection failed';
         statusEl.className = 'direct-connect-status error';
-        unsubErr();
+        unsubError();
       });
 
       nm.connect(url);
