@@ -58,6 +58,11 @@ class Game {
     this._botRespawnTimers = [];
     this._errorCount = 0;
     this.paused = false;
+    this._scoreboardStats = new Map();
+    this._multiRespawnTimer = null;
+    this._inputSeq = 0;
+    this._pendingInputs = [];
+    this._remoteInterp = new Map();
 
     this.errorOverlay = new ErrorOverlay();
     this.inputManager = null;
@@ -380,6 +385,7 @@ class Game {
     this._multiHost = false;
     this._multiCode = null;
     this._multiLocalTeam = null;
+    this._multiPing = 0;
 
     this.core.eventBus.on('lobby:created', (data) => {
       const ws = new WebSocket(SERVER_URL);
@@ -483,6 +489,8 @@ class Game {
       case 'hit':
         this._showImpactEffect(msg.data.point, { x: 0, y: 1, z: 0 }, true);
         if (msg.data.victimId === this._multiLocalId) {
+          this.playerHealth = Math.max(0, this.playerHealth - (msg.data.damage || 0));
+          this.ui.hud.updateHealth(this.playerHealth, this.playerMaxHealth);
           this.ui.hud.showDamageVignette?.();
         }
         if (msg.data.shooterId === this._multiLocalId) {
@@ -492,10 +500,24 @@ class Game {
 
       case 'kill':
         this.ui.hud?.addKillFeedEntry?.(msg.data);
+        this._trackMultiKill(msg.data);
+        if (msg.data.victim === this._multiLocalId) {
+          this.playerAlive = false;
+          this.playerHealth = 0;
+          this.player.controller.velocity.set(0, 0, 0);
+          this.ui.hud.updateHealth(0);
+          const respawnTime = msg.data.respawnTime || 3;
+          this.ui.hud.showDeathScreen(msg.data.killerName, respawnTime);
+          this._startMultiRespawnCountdown(respawnTime);
+        }
         break;
 
       case 'respawn':
         this._handleMultiRespawn(msg.data);
+        break;
+
+      case 'chat':
+        this._addChatMessage(msg.data.name, msg.data.message, msg.data.team);
         break;
 
       case 'match_end':
@@ -517,6 +539,13 @@ class Game {
       case 'error':
         console.error('[Multi]', msg.data.message);
         this.core.eventBus.emit('lobby:error', msg.data.message);
+        break;
+
+      case 'pong':
+        if (msg.data?.clientTime) {
+          const rtt = performance.now() - msg.data.clientTime;
+          this._multiPing = Math.round(rtt / 2);
+        }
         break;
     }
   }
@@ -545,6 +574,12 @@ class Game {
       this.player.firstPersonWeapon.switchModel(initialWeapon.type);
     }
 
+    this._scoreboardStats = new Map();
+    this._scoreboardStats.set(this._multiLocalId, { name: 'You', kills: 0, deaths: 0, team: this._multiLocalTeam });
+    this._rawScoreboardStats = new Map();
+
+    this._setupChatInput();
+
     this.ui.hud.show();
     this._clearBots();
     this._clearRemotePlayers();
@@ -553,37 +588,125 @@ class Game {
   _clearRemotePlayers() {
     for (const rp of this.remotePlayers) rp.dispose();
     this.remotePlayers = [];
+    this._remoteInterp.clear();
   }
 
   _applyMultiState(data) {
     if (!data || !data.entities) return;
 
     const localId = this._multiLocalId;
+    const now = performance.now();
+
     for (const [id, state] of Object.entries(data.entities)) {
-      if (id === localId) continue;
+      if (id === localId) {
+        this._reconcileLocalPlayer(state);
+        continue;
+      }
+
       let rp = this.remotePlayers.find(p => p.id === id);
       if (!rp) {
         rp = new RemotePlayer(this.scene, id, state.name || id);
         this.remotePlayers.push(rp);
+        this._remoteInterp.set(id, { prevPos: null, targetPos: null, prevTime: 0, targetTime: 0 });
       }
+
       rp.alive = state.alive;
       rp.team = state.team;
-      rp.update(state, 0.016);
+
+      const interp = this._remoteInterp.get(id);
+      if (interp) {
+        interp.prevPos = interp.targetPos || new THREE.Vector3(state.position.x, state.position.y || 0.9, state.position.z);
+        interp.targetPos = new THREE.Vector3(state.position.x, state.position.y || 0.9, state.position.z);
+        interp.prevTime = now;
+        interp.targetTime = now + 100;
+      }
+
+      if (!this._scoreboardStats.has(id)) {
+        this._scoreboardStats.set(id, { name: state.name || id, kills: 0, deaths: 0, team: state.team });
+      }
+      if (state.kills != null) {
+        if (!this._rawScoreboardStats) this._rawScoreboardStats = new Map();
+        this._rawScoreboardStats.set(id, { kills: state.kills, deaths: state.deaths, score: state.score });
+      }
     }
 
     const activeIds = new Set(Object.keys(data.entities));
     for (let i = this.remotePlayers.length - 1; i >= 0; i--) {
-      if (!activeIds.has(this.remotePlayers[i].id)) {
-        this.remotePlayers[i].dispose();
+      const rp = this.remotePlayers[i];
+      if (!activeIds.has(rp.id)) {
+        rp.dispose();
         this.remotePlayers.splice(i, 1);
+        this._remoteInterp.delete(rp.id);
       }
+    }
+  }
+
+  _reconcileLocalPlayer(serverState) {
+    const seq = serverState.seq;
+    if (!seq) return;
+
+    const idx = this._pendingInputs.findIndex(p => p.seq === seq);
+    if (idx !== -1) {
+      this._pendingInputs.splice(0, idx + 1);
+    }
+
+    const serverPos = new THREE.Vector3(serverState.position.x, serverState.position.y, serverState.position.z);
+    const localPos = this.player.controller.position;
+    const diff = localPos.distanceTo(serverPos);
+
+    if (diff > 1.0) {
+      this.player.controller.teleport(serverPos.x, serverPos.y, serverPos.z);
     }
   }
 
   _handleMultiSpawn(data) {}
   _handleMultiDespawn(data) {}
-  _handleMultiRespawn(data) {}
+
+  _startMultiRespawnCountdown(time) {
+    if (this._multiRespawnTimer) clearInterval(this._multiRespawnTimer);
+    let remaining = time;
+    this._multiRespawnTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(this._multiRespawnTimer);
+        this._multiRespawnTimer = null;
+      }
+      this.ui.hud.updateDeathRespawnTimer(Math.max(0, remaining));
+    }, 1000);
+  }
+
+  _handleMultiRespawn(data) {
+    if (data.id === this._multiLocalId) {
+      if (this._multiRespawnTimer) {
+        clearInterval(this._multiRespawnTimer);
+        this._multiRespawnTimer = null;
+      }
+      this.playerHealth = this.playerMaxHealth;
+      this.playerAlive = true;
+      if (data.position) {
+        this.player.controller.teleport(data.position.x, data.position.y, data.position.z);
+      }
+      const rifle = this.systems.weaponManager.weapons.find(w => w.type === WeaponType.RIFLE);
+      if (rifle) {
+        rifle.currentAmmo = rifle.magSize;
+        rifle.reserveAmmo = Math.max(rifle.reserveAmmo, rifle.magSize * 3);
+      }
+      this.ui.hud.updateHealth(this.playerHealth, this.playerMaxHealth);
+      this.ui.hud.hideDeathScreen();
+    }
+  }
   _showMuzzleFlashRemote(playerId) {}
+
+  _trackMultiKill(data) {
+    const killer = this._scoreboardStats.get(data.killer);
+    if (killer) { killer.kills++; } else {
+      this._scoreboardStats.set(data.killer, { name: data.killerName, kills: 1, deaths: 0, team: data.killerTeam });
+    }
+    const victim = this._scoreboardStats.get(data.victim);
+    if (victim) { victim.deaths++; } else {
+      this._scoreboardStats.set(data.victim, { name: data.victimName, kills: 0, deaths: 1, team: data.victimTeam });
+    }
+  }
 
   _endMultiMatch(data) {
     this.core.gameStateManager.transitionTo(States.MATCH_END, { mode: 'multi', ...data });
@@ -592,17 +715,24 @@ class Game {
   _setupChatInput() {
     const input = document.getElementById('chat-input');
     if (!input) return;
-    input.addEventListener('keydown', (e) => {
+    if (this._chatInputHandler) {
+      input.removeEventListener('keydown', this._chatInputHandler);
+    }
+    this._chatInputHandler = (e) => {
       if (e.key === 'Enter' && input.value.trim()) {
         const msg = input.value.trim();
         input.value = '';
         this.ui.hud.addChatMessage('You', msg);
         this.ui.hud.hideChat();
+        if (this.gameMode === 'multi' && this._multiWs && this._multiWs.readyState === WebSocket.OPEN) {
+          this._multiWs.send(JSON.stringify({ type: 'chat', data: { message: msg } }));
+        }
       }
       if (e.key === 'Escape') {
         this.ui.hud.hideChat();
       }
-    });
+    };
+    input.addEventListener('keydown', this._chatInputHandler);
   }
 
   _startSoloGame(config) {
@@ -665,6 +795,8 @@ class Game {
 
     this._clearBots();
     this._spawnBots(config.difficulty, config.botCount);
+
+    this._setupChatInput();
 
     this.ui.hud.setViewToggleCallback(() => {
       const view = this.player.cameraSystem.toggleView();
@@ -729,6 +861,10 @@ class Game {
         clearTimeout(this._respawnTimer);
         this._respawnTimer = null;
       }
+      if (this._multiRespawnTimer) {
+        clearInterval(this._multiRespawnTimer);
+        this._multiRespawnTimer = null;
+      }
       for (const id of this._botRespawnTimers) clearTimeout(id);
       this._botRespawnTimers = [];
 
@@ -738,6 +874,9 @@ class Game {
       this._clearBots();
       this._clearRemotePlayers();
       if (this._multiWs) { this._multiWs.close(); this._multiWs = null; }
+      this._scoreboardStats = new Map();
+      this._rawScoreboardStats = new Map();
+      this._multiPing = 0;
       this.playerHealth = this.playerMaxHealth;
       this.playerAlive = true;
     });
@@ -1072,21 +1211,71 @@ class Game {
     this._scoreboardData = rows;
   }
 
+  _updateMultiScoreboardData() {
+    const rows = [];
+    const now = performance.now();
+    for (const [id, stats] of this._scoreboardStats) {
+      const isLocal = id === this._multiLocalId;
+      const rawStats = this._rawScoreboardStats?.get(id);
+      rows.push({
+        name: isLocal ? 'You' : (stats.name || id),
+        team: stats.team || '',
+        kills: rawStats?.kills ?? stats.kills,
+        deaths: rawStats?.deaths ?? stats.deaths,
+        score: rawStats?.score ?? stats.kills * 100,
+        ping: isLocal ? this._multiPing : '-',
+        local: isLocal
+      });
+    }
+    rows.sort((a, b) => {
+      if (a.team !== b.team) return a.team < b.team ? -1 : 1;
+      return b.score - a.score;
+    });
+    this._scoreboardData = rows;
+  }
+
+  _showScoreboard() {
+    if (this.gameMode === 'multi') {
+      this._updateMultiScoreboardData();
+    } else {
+      this._updateScoreboardData();
+    }
+    this.ui.hud.showScoreboard(this._scoreboardData);
+  }
+
+  _hideScoreboard() {
+    this.ui.hud.hideScoreboard();
+  }
+
+  _updateRemoteInterpolation(deltaTime) {
+    const now = performance.now();
+    for (const rp of this.remotePlayers) {
+      if (!rp.alive) continue;
+      const interp = this._remoteInterp.get(rp.id);
+      if (!interp || !interp.targetPos) continue;
+      if (!interp.prevPos) {
+        rp.group.position.copy(interp.targetPos);
+        continue;
+      }
+      const t = Math.min(1, (now - interp.prevTime) / (interp.targetTime - interp.prevTime + 0.001));
+      const smooth = t * t * (3 - 2 * t);
+      rp.group.position.lerpVectors(interp.prevPos, interp.targetPos, smooth);
+    }
+  }
+
   _updateNetwork(deltaTime) {
     if (this.gameMode === 'multi' && this._multiWs && this._multiWs.readyState === WebSocket.OPEN) {
+      this._inputSeq++;
       const inputs = this.player.controller?.inputs;
       const euler = this.player.controller?.euler;
       if (inputs) {
-        this._multiWs.send(JSON.stringify({ type: 'input', data: { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 } }, time: performance.now() }));
+        const inputData = { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 }, seq: this._inputSeq };
+        this._multiWs.send(JSON.stringify({ type: 'input', data: inputData, time: performance.now() }));
+        this._pendingInputs.push({ seq: this._inputSeq, inputs: inputData, time: performance.now() });
+        while (this._pendingInputs.length > 120) this._pendingInputs.shift();
       }
       this._multiWs.send(JSON.stringify({ type: 'ping', data: { clientTime: performance.now() } }));
     }
-
-    if (!this.network.networkManager.isConnected()) return;
-
-    const inputSnapshot = this.player.controller?.getState() || null;
-    this.network.networkManager.update(deltaTime, inputSnapshot);
-    this.network.interpolation.update(deltaTime);
 
     this.core.debugTools.setPing(Math.round(this.network.networkManager.latency));
     this.core.debugTools.setBullets(this.systems.bulletPool.activeCount);
@@ -1117,6 +1306,7 @@ class Game {
       this._updateBots(rawDelta);
       this._updateCoreSystems(rawDelta);
       this._updateNetwork(rawDelta);
+      this._updateRemoteInterpolation(rawDelta);
       this._render();
 
       this.core.debugTools.setBullets(this.systems.bulletPool.activeCount);

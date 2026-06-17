@@ -307,15 +307,18 @@ export class HUD {
   // --- Scoreboard ---
   showScoreboard(stats) {
     if (!this.elements.scoreboard || !this.elements.scoreboardRows) return;
-    const rows = stats.map(s => `
-      <div class="scoreboard-row${s.local ? ' local' : ''}">
-        <span>${s.name}</span>
+    const rows = stats.map(s => {
+      const teamClass = s.team ? ' team-' + s.team.toLowerCase() : '';
+      return `
+      <div class="scoreboard-row${s.local ? ' local' : ''}${teamClass}">
+        <span class="sb-name${teamClass}">${s.name}</span>
+        <span class="sb-team">${s.team || '-'}</span>
         <span>${s.kills}</span>
         <span>${s.deaths}</span>
         <span>${s.score}</span>
-        <span>${s.ping || '-'}</span>
-      </div>
-    `).join('');
+        <span>${s.ping}</span>
+      </div>`;
+    }).join('');
     this.elements.scoreboardRows.innerHTML = rows;
     this.elements.scoreboard.classList.remove('hidden');
   }

@@ -125,6 +125,12 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'pong', serverTime: Date.now(), clientTime: msg.data?.clientTime }));
         break;
       }
+      case 'chat': {
+        if (currentRoom && currentRoom.state === 'playing') {
+          currentRoom.handleChat(playerId, msg.data?.message);
+        }
+        break;
+      }
       case 'regenerate_code': {
         if (currentRoom && currentRoom.hostId === playerId) {
           let newCode;

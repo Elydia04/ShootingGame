@@ -34,6 +34,7 @@ export class GameRoom {
     });
 
     this.matchManager.on('kill', (data) => {
+      data.respawnTime = this.matchManager.config.respawnTime;
       this._broadcast({ type: 'kill', data });
       const victim = this.players.get(data.victim);
       if (victim) {
@@ -144,6 +145,9 @@ export class GameRoom {
         player.euler = { ...player.euler, ...inputData.euler };
       }
       player.inputs = { ...player.inputs, ...inputData };
+      if (inputData.seq != null) {
+        player.lastProcessedSeq = Math.max(player.lastProcessedSeq, inputData.seq);
+      }
     }
   }
 
@@ -319,6 +323,7 @@ export class GameRoom {
   _broadcastState() {
     const entities = {};
     for (const [id, player] of this.players) {
+      const stats = this.matchManager.playerStats.get(id);
       entities[id] = {
         position: player.position,
         velocity: player.velocity,
@@ -328,7 +333,12 @@ export class GameRoom {
         health: player.health,
         weapon: player.weapon,
         inputs: player.inputs,
-        team: player.team
+        name: player.name,
+        team: player.team,
+        seq: player.lastProcessedSeq,
+        kills: stats?.kills || 0,
+        deaths: stats?.deaths || 0,
+        score: stats?.score || 0
       };
     }
     const msg = { type: 'state', data: { entities, worldTime: Date.now() } };
@@ -369,6 +379,20 @@ export class GameRoom {
     player.health = 100;
     player.alive = true;
     this._broadcast({ type: 'respawn', data: { id, position: player.position } });
+  }
+
+  handleChat(senderId, message) {
+    const sender = this.players.get(senderId);
+    if (!sender || !message) return;
+    const chatMsg = JSON.stringify({
+      type: 'chat',
+      data: { name: sender.name, message, team: sender.team }
+    });
+    for (const [id, player] of this.players) {
+      if (id !== senderId && player.ws.readyState === 1) {
+        player.ws.send(chatMsg);
+      }
+    }
   }
 
   getPlayerList() {

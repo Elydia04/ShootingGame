@@ -43,6 +43,13 @@ export class InputManager {
         this.game.bots.forEach(b => b.hitbox.setDebugMode(this.game.core.debugTools.enabled));
       }
 
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        if (this.game.core.gameStateManager.is(States.PLAYING)) {
+          this.game._showScoreboard();
+        }
+      }
+
       if (e.code === 'Escape') {
         if (this.game.ui.settingsMenu?.isVisible()) {
           this.game.ui.settingsMenu.hide();
@@ -62,6 +69,13 @@ export class InputManager {
         } else if (this.game.core.gameStateManager.is(States.PLAYING)) {
           this.game.pauseManager.requestPointerLock();
         }
+      }
+
+      if (e.code === 'Enter' && this.game.core.gameStateManager.is(States.PLAYING)) {
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput && document.activeElement === chatInput) return;
+        e.preventDefault();
+        this.game.ui.hud?.showChat?.();
       }
 
       if (e.code === this.game.core.settingsManager.getKeybind('reload')) {
@@ -98,6 +112,10 @@ export class InputManager {
 
     document.addEventListener('keyup', (e) => {
       this._keys.delete(e.code);
+      if (e.code === 'Tab') {
+        e.preventDefault();
+        this.game._hideScoreboard();
+      }
     });
 
     document.addEventListener('blur', () => {
