@@ -139,12 +139,13 @@ export class Weapon {
   }
 
   startReload() {
-    if (this.reloading) return;
-    if (this.currentAmmo >= this.magSize) return;
-    if (this.reserveAmmo <= 0) return;
+    if (this.reloading) return false;
+    if (this.currentAmmo >= this.magSize) return false;
+    if (this.reserveAmmo <= 0) return false;
 
     this.reloading = true;
     this.reloadProgress = 0;
+    return true;
   }
 
   updateReload(deltaTime) {
@@ -236,7 +237,7 @@ export class WeaponManager {
 
   reload() {
     const weapon = this.getCurrentWeapon();
-    if (weapon) weapon.startReload();
+    return weapon ? weapon.startReload() : false;
   }
 
   update(deltaTime) {

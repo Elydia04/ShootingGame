@@ -185,6 +185,17 @@ export class MapManager {
     tree.userData.isTree = true;
     this.scene.add(tree);
     this.objects.push(tree);
+
+    const trunkRadius = config.trunkRadius || 0.15 + Math.random() * 0.1;
+    const trunkHeight = config.trunkHeight || 2.5 + Math.random() * 1.5;
+    const collisionProxy = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.35, 0.4, trunkHeight, 6),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    collisionProxy.position.set(config.x || 0, trunkHeight / 2, config.z || 0);
+    collisionProxy.userData.isMapObject = true;
+    this.scene.add(collisionProxy);
+    this.objects.push(collisionProxy);
   }
 
   _createBuilding(config) {
@@ -192,6 +203,7 @@ export class MapManager {
       house1: BuildingGenerator.house1,
       house2: BuildingGenerator.house2,
       house3: BuildingGenerator.house3,
+      hauntedHouse: BuildingGenerator.hauntedHouse,
     };
     const builder = builderMap[config.type];
     if (!builder) {
@@ -244,6 +256,8 @@ export class MapManager {
       dir.castShadow = true;
       dir.shadow.mapSize.width = 1024;
       dir.shadow.mapSize.height = 1024;
+      dir.shadow.bias = -0.0005;
+      dir.shadow.normalBias = 0.02;
       this.scene.userData.dirLight = dir;
       dir.shadow.camera.near = 0.5;
       dir.shadow.camera.far = 200;

@@ -10,8 +10,8 @@ const NORMAL_HEIGHT = 1.8;
 const CROUCH_TRANSITION = 8.0;
 
 const CAMERA = {
-  normalHeight: 1.6,
-  crouchHeight: 0.6,
+  normalHeight: 0.75,
+  crouchHeight: 0.2,
   bobFrequency: 10.0,
   bobAmplitude: 0.07,
   sprintBobMultiplier: 2.0,

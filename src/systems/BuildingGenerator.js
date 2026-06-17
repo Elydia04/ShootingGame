@@ -114,7 +114,7 @@ export class BuildingGenerator {
     const group = new THREE.Group();
     const w = config.width || 12;
     const d = config.depth || 10;
-    const h = config.wallHeight || 3.5;
+    const h = config.wallHeight || 4.5;
     const wallColor = config.wallColor || 0xffffff;
     const roofColor = config.roofColor || 0x8b4513;
     const trimColor = config.trimColor || 0xeeddcc;
@@ -136,7 +136,7 @@ export class BuildingGenerator {
     // Floor slab
     const floor = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), brickMat);
     floor.position.y = 0.075;
-    floor.userData.isMapObject = true;
+    // floor slab — visual only, walls handle collision
     group.add(floor);
 
     // Back wall
@@ -166,14 +166,14 @@ export class BuildingGenerator {
     for (let wz of [-2, 2]) addWindow(group, w / 2 + 0.01, winY, wz, 'x', 0.8, 0.9, trimMat);
     for (let wx of [-2.5, 0, 2.5]) addWindow(group, wx, winY, -d / 2 - 0.01, 'z', 0.8, 0.9, trimMat);
 
-    // Roof (pyramid)
-    const roofH = 2.0;
+    // Roof (pyramid) with overhang
+    const roofH = 2.5;
     const roof = new THREE.Mesh(
-      new THREE.ConeGeometry(Math.sqrt(w * w + d * d) * 0.35, roofH, 4), roofMat
+      new THREE.ConeGeometry(Math.sqrt(w * w + d * d) * 0.6, roofH, 4), roofMat
     );
     roof.position.set(0, wallH + roofH / 2, 0);
     roof.rotation.y = Math.PI / 4;
-    roof.castShadow = true; roof.receiveShadow = true; roof.userData.isMapObject = true;
+    roof.castShadow = true; roof.receiveShadow = true;
     group.add(roof);
 
     // Door
@@ -190,7 +190,7 @@ export class BuildingGenerator {
     const group = new THREE.Group();
     const w = config.width || 12;
     const d = config.depth || 10;
-    const floorH = config.floorHeight || 3.5;
+    const floorH = config.floorHeight || 4.5;
     const wallColor = config.wallColor || 0xffffff;
     const roofColor = config.roofColor || 0x666666;
     const trimColor = config.trimColor || 0xdddddd;
@@ -212,7 +212,7 @@ export class BuildingGenerator {
     // === Ground floor ===
     const gFloor = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), brickMat);
     gFloor.position.y = 0.075;
-    gFloor.userData.isMapObject = true;
+    // floor slab — visual only
     group.add(gFloor);
 
     const gH = floorH;
@@ -244,7 +244,7 @@ export class BuildingGenerator {
     // === Second floor ===
     const sFloor = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), brickMat);
     sFloor.position.set(0, gH, 0);
-    sFloor.userData.isMapObject = true;
+    // floor slab — visual only
     group.add(sFloor);
 
     const sH = floorH;
@@ -284,10 +284,11 @@ export class BuildingGenerator {
     for (let wz of [-2, 2]) addWindow(group, w / 2 + 0.01, gH + 1.8, wz, 'x', 0.8, 0.9, trimMat);
     for (let wx of [-2.5, 0, 2.5]) addWindow(group, wx, gH + 1.8, -d / 2 - 0.01, 'z', 0.8, 0.9, trimMat);
 
-    // === Rooftop ===
-    const rFloor = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), brickMat);
+    // === Rooftop with overhang ===
+    const overhang = 1.0;
+    const rFloor = new THREE.Mesh(new THREE.BoxGeometry(w + overhang * 2, 0.15, d + overhang * 2), brickMat);
     rFloor.position.set(0, gH + sH, 0);
-    rFloor.userData.isMapObject = true;
+    // floor slab — visual only
     group.add(rFloor);
 
     const rY = gH + sH + 0.1;
@@ -358,7 +359,7 @@ export class BuildingGenerator {
     const group = new THREE.Group();
     const w = config.width || 10;
     const d = config.depth || 9;
-    const floorH = config.floorHeight || 3.5;
+    const floorH = config.floorHeight || 4.5;
     const wallColor = config.wallColor || 0xffffff;
     const roofColor = config.roofColor || 0x555555;
 
@@ -381,7 +382,7 @@ export class BuildingGenerator {
 
       const slab = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), brickMat);
       slab.position.set(0, yBase + 0.075, 0);
-      slab.userData.isMapObject = true;
+      // floor slab — visual only
       group.add(slab);
 
       const fH = floorH;
@@ -420,10 +421,10 @@ export class BuildingGenerator {
       }
     }
 
-    // Flat roof
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), roofMat);
+    // Flat roof with overhang
+    const roof = new THREE.Mesh(new THREE.BoxGeometry(w + 1.0, 0.15, d + 1.0), roofMat);
     roof.position.set(0, floors * floorH, 0);
-    roof.userData.isMapObject = true;
+    // flat roof — visual only
     group.add(roof);
 
     // Rooftop AC unit
@@ -438,6 +439,108 @@ export class BuildingGenerator {
 
     // Interior
     addCeilingLight(group, 0, floorH - 0.05, 0);
+
+    return group;
+  }
+
+  static hauntedHouse(config = {}) {
+    const group = new THREE.Group();
+    const w = config.width || 10;
+    const d = config.depth || 8;
+    const h = config.wallHeight || 4.5;
+    const wallColor = config.wallColor || 0x4a4a4a;
+    const roofColor = config.roofColor || 0x2a2a2a;
+
+    const plasterTex = TextureGenerator.createPlasterTexture();
+    const roofTex = TextureGenerator.createRoofTileTexture();
+
+    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.95 });
+    const roofMat = texMat(roofTex, roofColor, { roughness: 0.8 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
+    const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.95 });
+    const glassMat = new THREE.MeshStandardMaterial({ color: 0x0a1a2a, roughness: 0.3, metalness: 0.1 });
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
+
+    const wallThick = 0.15;
+    const wallH = h;
+
+    // Floor slab
+    const floor = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d), woodMat);
+    floor.position.y = 0.075;
+    // floor slab — visual only, walls handle collision
+    group.add(floor);
+
+    // Back wall
+    const back = new THREE.Mesh(new THREE.BoxGeometry(w, wallH, wallThick), wallMat);
+    back.position.set(0, wallH / 2, -d / 2);
+    back.castShadow = true; back.receiveShadow = true; back.userData.isMapObject = true;
+    group.add(back);
+
+    // Front wall with door gap
+    for (const m of frontWallWithDoor(w, wallH, wallThick, wallMat, d, glassMat)) group.add(m);
+
+    // Boarded door (crossed planks)
+    const doorPlank1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.04), darkWoodMat);
+    doorPlank1.position.set(0, 0.3, d / 2 + 0.02);
+    group.add(doorPlank1);
+    const doorPlank2 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.04), darkWoodMat);
+    doorPlank2.position.set(0, 0.7, d / 2 + 0.02);
+    group.add(doorPlank2);
+    const doorPlank3 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.04), darkWoodMat);
+    doorPlank3.position.set(0, 1.1, d / 2 + 0.02);
+    group.add(doorPlank3);
+    const doorPlank4 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.04), darkWoodMat);
+    doorPlank4.position.set(0, 1.5, d / 2 + 0.02);
+    group.add(doorPlank4);
+    const doorCross1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.8, 0.04), darkWoodMat);
+    doorCross1.rotation.z = 0.3;
+    doorCross1.position.set(0, 0.95, d / 2 + 0.02);
+    group.add(doorCross1);
+    const doorCross2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.8, 0.04), darkWoodMat);
+    doorCross2.rotation.z = -0.3;
+    doorCross2.position.set(0, 0.95, d / 2 + 0.02);
+    group.add(doorCross2);
+
+    // Left wall
+    const left = new THREE.Mesh(new THREE.BoxGeometry(wallThick, wallH, d), wallMat);
+    left.position.set(-w / 2, wallH / 2, 0);
+    left.castShadow = true; left.receiveShadow = true; left.userData.isMapObject = true;
+    group.add(left);
+
+    // Right wall
+    const right = new THREE.Mesh(new THREE.BoxGeometry(wallThick, wallH, d), wallMat);
+    right.position.set(w / 2, wallH / 2, 0);
+    right.castShadow = true; right.receiveShadow = true; right.userData.isMapObject = true;
+    group.add(right);
+
+    // Side windows (one per side, slightly offset - broken panes)
+    addWindow(group, -w / 2 - 0.01, 1.8, -1.5, 'x', 0.7, 0.8, null);
+    addWindow(group, w / 2 + 0.01, 1.8, 1.5, 'x', 0.7, 0.8, null);
+    addWindow(group, 2.5, 1.8, -d / 2 - 0.01, 'z', 0.7, 0.8, null);
+
+    // Roof (pyramid with wider overhang)
+    const roofH = 2.0;
+    const roof = new THREE.Mesh(
+      new THREE.ConeGeometry(Math.sqrt(w * w + d * d) * 0.4, roofH, 4), roofMat
+    );
+    roof.position.set(0, wallH + roofH / 2, 0);
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true; roof.receiveShadow = true;
+    group.add(roof);
+
+    // Chimney
+    const chimney = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 1.2, 0.6), wallMat
+    );
+    chimney.position.set(2.5, wallH + roofH - 0.4, -1.5);
+    chimney.castShadow = true; chimney.receiveShadow = true;
+    group.add(chimney);
+    const chimneyTop = new THREE.Mesh(
+      new THREE.BoxGeometry(0.7, 0.1, 0.7), darkWoodMat
+    );
+    chimneyTop.position.set(2.5, wallH + roofH + 0.2, -1.5);
+    chimneyTop.castShadow = true;
+    group.add(chimneyTop);
 
     return group;
   }

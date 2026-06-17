@@ -45,7 +45,7 @@ export class MovementController {
   }
 
   applyMovement(dt, inputs) {
-    const sprint = inputs.sprint && inputs.forward && !inputs.backward && !inputs.left && !inputs.right && !inputs.crouch;
+    const sprint = inputs.sprint && inputs.forward && !inputs.backward && !inputs.crouch;
     const crouch = inputs.crouch;
     const maxSpeed = (crouch ? CROUCH_SPEED : (sprint ? SPRINT_SPEED : WALK_SPEED)) * this.slowMultiplier;
     const accel = this.grounded ? ACCEL : AIR_ACCEL;

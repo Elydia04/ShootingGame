@@ -38,6 +38,9 @@ export const trainingMap = {
 
     // House 3 (3 floors) - far end
     { type: 'house3', x: 75, z: 0, rotation: 0.2 },
+
+    // Haunted house - isolated corner
+    { type: 'hauntedHouse', x: -70, z: -75, rotation: 0.5 },
   ],
 
   trees: [

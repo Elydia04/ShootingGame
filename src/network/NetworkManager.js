@@ -35,7 +35,6 @@ export class NetworkManager {
       this.connected = true;
       console.log(`[Network] Connected to ${url}`);
       this._startPing();
-      this._emit('connected');
     };
 
     this.ws.onclose = () => {

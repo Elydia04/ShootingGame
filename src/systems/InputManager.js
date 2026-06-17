@@ -13,7 +13,7 @@ export class InputManager {
 
   _setupPointerLock() {
     document.addEventListener('click', (e) => {
-      this.game.systems.audioManager.resume();
+      this.game.systems.audioManager?.resume();
       if (this.game.core.gameStateManager.is(States.PLAYING) && e.target === this.game.renderer.domElement) {
         this.game.pauseManager.requestPointerLock();
       }
@@ -21,6 +21,10 @@ export class InputManager {
 
     document.addEventListener('pointerlockchange', () => {
       const locked = document.pointerLockElement === this.game.renderer.domElement;
+      if (!locked) {
+        this._keys.delete('Mouse0');
+        this._keys.delete('Mouse2');
+      }
       if (this.game.player.controller) {
         this.game.player.controller.isPointerLocked = locked;
       }
@@ -79,9 +83,8 @@ export class InputManager {
         this.game.ui.hud?.showChat?.();
       }
 
-      if (e.code === this.game.core.settingsManager.getKeybind('reload')) {
-        if (this.game.systems.weaponManager) {
-          this.game.systems.weaponManager.reload();
+      if (e.code === this.game.core.settingsManager.getKeybind('reload') && this.game.systems.weaponManager) {
+        if (this.game.systems.weaponManager.reload()) {
           const weapon = this.game.systems.weaponManager.getCurrentWeapon();
           this.game.player.firstPersonWeapon.playReload(weapon ? weapon.reloadTime : 2.0);
           this.game.systems.audioManager.play('reload', 'WEAPON');
@@ -132,8 +135,9 @@ export class InputManager {
 
     document.addEventListener('mousedown', (e) => {
       this._keys.add(`Mouse${e.button}`);
+      this.game.systems.audioManager?.resume();
 
-      if (e.button === 0 && this.game.core.gameStateManager.is(States.PLAYING) && this.game.playerAlive) {
+      if (e.button === 0 && this.game.core.gameStateManager.is(States.PLAYING) && this.game.playerAlive && !this.game.paused) {
         const weapon = this.game.systems.weaponManager?.getCurrentWeapon();
         if (weapon) {
           this.game._fireWeapon();
@@ -143,6 +147,9 @@ export class InputManager {
 
     document.addEventListener('mouseup', (e) => {
       this._keys.delete(`Mouse${e.button}`);
+      if (e.button === 0) {
+        this.game._onTriggerRelease?.();
+      }
     });
 
     document.addEventListener('wheel', (e) => {

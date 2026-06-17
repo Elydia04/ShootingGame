@@ -14,7 +14,6 @@ class AudioClip {
     this.buffer = buffer;
     this.volume = volume;
     this.pitch = pitch;
-    this.duration = 0;
   }
 }
 
@@ -100,16 +99,6 @@ export class AudioManager {
       const gainNode = this.context.createGain();
       gainNode.gain.value = (options.volume ?? clip.volume);
 
-      // Envelope to tighten tails and prevent stacking noise
-      if (clip.duration) {
-        const now = this.context.currentTime;
-        const envDuration = clip.duration;
-        gainNode.gain.setValueAtTime(0, now);
-        gainNode.gain.linearRampToValueAtTime(options.volume ?? clip.volume, now + 0.003);
-        gainNode.gain.setValueAtTime(options.volume ?? clip.volume, now + 0.05);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, now + envDuration);
-      }
-
       const panner = this.context.createPanner();
       panner.panningModel = 'HRTF';
       panner.distanceModel = 'inverse';
@@ -175,6 +164,32 @@ export class AudioManager {
     this.activeSources.clear();
   }
 
+  fadeOutStop(name, duration = 0.2) {
+    const entry = this._activeClipSources.get(name);
+    if (!entry) return;
+    const { source, gainNode } = entry;
+    try {
+      const now = this.context.currentTime;
+      const currentGain = gainNode.gain.value;
+      gainNode.gain.cancelScheduledValues(now);
+      gainNode.gain.setValueAtTime(currentGain, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+      source.stop(now + duration + 0.05);
+      const cleanup = () => {
+        this.activeSources.delete(source);
+        if (this._activeClipSources.get(name)?.source === source) {
+          this._activeClipSources.delete(name);
+        }
+      };
+      source.onended = cleanup;
+      setTimeout(cleanup, (duration + 0.1) * 1000);
+    } catch (e) {
+      try { source.stop(); } catch (e2) {}
+      this.activeSources.delete(source);
+      this._activeClipSources.delete(name);
+    }
+  }
+
   setMasterVolume(volume) {
     if (this.masterGain) {
       this.masterGain.gain.value = volume;
@@ -188,12 +203,22 @@ export class AudioManager {
     }
   }
 
-  updateListenerPosition(position, quaternion) {
+  updateListenerPosition(position, forward, up) {
     if (!this.listener) return;
     if (position) {
       this.listener.positionX.value = position.x;
       this.listener.positionY.value = position.y;
       this.listener.positionZ.value = position.z;
+    }
+    if (forward) {
+      this.listener.forwardX.value = forward.x;
+      this.listener.forwardY.value = forward.y;
+      this.listener.forwardZ.value = forward.z;
+    }
+    if (up) {
+      this.listener.upX.value = up.x;
+      this.listener.upY.value = up.y;
+      this.listener.upZ.value = up.z;
     }
   }
 
@@ -292,17 +317,42 @@ export class AudioManager {
     return buf;
   }
 
+  _generateAutoBurst(decayFast, decaySlow, mix, fireRate, burstDuration = 0.5) {
+    const sr = this.context.sampleRate;
+    const totalLen = Math.floor(sr * burstDuration);
+    const buf = this.context.createBuffer(1, totalLen, sr);
+    const d = buf.getChannelData(0);
+    const shotInterval = Math.max(fireRate, 0.05);
+    const numShots = Math.floor(burstDuration / shotInterval);
+    for (let s = 0; s < numShots; s++) {
+      const shotStart = Math.floor(s * shotInterval * sr);
+      const shotLen = Math.floor(sr * 0.07);
+      let last = 0;
+      for (let i = 0; i < shotLen && shotStart + i < totalLen; i++) {
+        const t = i / sr;
+        const fast = Math.exp(-t * decayFast) * mix;
+        const slow = Math.exp(-t * decaySlow) * (1 - mix);
+        const env = (fast + slow) * Math.sin(Math.PI * i / shotLen);
+        let n = Math.random() * 2 - 1;
+        last += (n - last) * 0.4;
+        d[shotStart + i] += (n * fast + last * slow) / (fast + slow + 0.001) * env * 0.4;
+      }
+    }
+    for (let i = 0; i < totalLen; i++) {
+      d[i] *= this._envelope(i, totalLen, sr) * 0.7;
+    }
+    return buf;
+  }
+
   async loadRealSounds() {
     const sounds = [
-      { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0, dur: 0.2 },
-      { name: 'gunshot_pistol', file: 'sounds/pistol_shot.wav', vol: 0.45, pitch: 1.0, dur: 0.2 },
-      { name: 'gunshot_shotgun', file: 'sounds/shotgun_shot.wav', vol: 0.55, pitch: 1.0, dur: 0.25 },
+      { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0 },
+      { name: 'gunshot_shotgun', file: 'sounds/shotgun_shot.wav', vol: 0.55, pitch: 1.0 },
     ];
     const loaded = [];
     for (const s of sounds) {
       await this.loadClip(s.name, s.file, s.vol, s.pitch);
-      const clip = this.clips.get(s.name);
-      if (clip) { clip.duration = s.dur; loaded.push(s.name); }
+      if (this.clips.get(s.name)) loaded.push(s.name);
     }
     if (loaded.length > 0) console.log(`[AudioManager] Loaded ${loaded.length}/${sounds.length} real sound files (${loaded.join(', ')})`);
   }
@@ -312,15 +362,16 @@ export class AudioManager {
     this.registerClip('gunshot_pistol', this._generateGunshot(50, 12, 0.6), 0.4, 1.4);
     this.registerClip('gunshot_smg', this._generateGunshot(70, 18, 0.8), 0.35, 1.3);
     this.registerClip('gunshot_shotgun', this._generateGunshot(40, 10, 0.5), 0.6, 0.9);
+    this.registerClip('auto_rifle', this._generateAutoBurst(60, 15, 0.7, 0.1), 0.4, 1.0);
+    this.registerClip('auto_smg', this._generateAutoBurst(70, 18, 0.8, 0.07), 0.35, 1.0);
 
-    this.registerClip('footstep', this._generateNoise(0.06, 25, false), 0.3, 1.0);
+    this.registerClip('footstep', this._generateNoise(0.06, 25, false), 0.12, 1.0);
     this.registerClip('hit', this._generateNoise(0.05, 30, false), 0.5, 1.0);
     this.registerClip('hit_leg', this._generateNoise(0.04, 25, false), 0.3, 0.8);
 
     this.registerClip('reload', this._generateNoise(0.25, 6, false), 0.2, 1.0);
 
     this.registerClip('knife_swing', this._generateNoise(0.06, 30, true), 0.45, 1.1);
-    this.registerClip('bullet_flyby', this._generateFlyby(), 0.35, 1.0);
   }
 
   dispose() {

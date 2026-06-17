@@ -66,6 +66,9 @@ class Game {
     this._scoreboardStats = new Map();
     this._scoreboardRefreshTimer = null;
     this._multiRespawnTimer = null;
+    this._autoFireSound = null;
+    this._listenerForward = new THREE.Vector3();
+    this._listenerUp = new THREE.Vector3();
     this._inputSeq = 0;
     this._pendingInputs = [];
     this._reconcileTarget = new THREE.Vector3();
@@ -109,6 +112,7 @@ class Game {
 
     this.systems.audioManager = new AudioManager(this.core.settingsManager);
     await this.systems.audioManager.init();
+    this.systems.audioManager.resume();
 
     await this.systems.assetManager.loadAll();
 
@@ -124,10 +128,9 @@ class Game {
     this.systems.bulletPool.onHit((hit) => {
       this.core.eventBus.emit('bullet:hit', hit);
       this._showImpactEffect(hit.point, hit.normal, false);
-      this.systems.audioManager.playAtPosition('hit', hit.point, 'HIT');
     });
     this.systems.bulletPool.onNearMiss((pos) => {
-      this.systems.audioManager.playAtPosition('bullet_flyby', pos, 'WEAPON', { volume: 0.25 });
+      // removed bullet_flyby sound
     });
 
     this.systems.matchManager = new MatchManager();
@@ -144,7 +147,7 @@ class Game {
       0.1,
       1000
     );
-    this.player.camera.position.set(0, 1.6, 0);
+    this.player.camera.position.set(0, 0.75, 0);
     this.scene.add(this.player.camera);
 
     this.player.controller = new PlayerController(
@@ -244,9 +247,20 @@ class Game {
   }
 
   getCollidables() {
-    return this.systems.mapManager.objects.filter(
-      o => o.userData?.isWall || o.userData?.isMapObject || o.userData?.isBoundary
-    );
+    const result = [];
+    for (const obj of this.systems.mapManager.objects) {
+      if (obj.userData?.isWall || obj.userData?.isMapObject || obj.userData?.isBoundary) {
+        result.push(obj);
+      }
+      if (obj.isGroup) {
+        obj.traverse((child) => {
+          if (child.isMesh && (child.userData?.isWall || child.userData?.isMapObject)) {
+            result.push(child);
+          }
+        });
+      }
+    }
+    return result;
   }
 
   _fireWeapon() {
@@ -264,11 +278,7 @@ class Game {
     if (this.gameMode === 'multi') {
       this.player.firstPersonWeapon.playShoot();
       this.systems.animationManager.playWeapon('shoot');
-      const shotSound = weapon.type === 'Rifle' ? 'gunshot_rifle' :
-                        weapon.type === 'Pistol' ? 'gunshot_pistol' :
-                        weapon.type === 'SMG' ? 'gunshot_smg' :
-                        weapon.type === 'Shotgun' ? 'gunshot_shotgun' : 'gunshot_rifle';
-      this.systems.audioManager.play(shotSound, 'WEAPON');
+      this._playWeaponSound(weapon);
       this.core.eventBus.emit('weapon:fired', {
         weapon: weapon.type, ammo: weapon.currentAmmo, reserve: weapon.reserveAmmo
       });
@@ -284,7 +294,6 @@ class Game {
       if (hit) {
         this.ui.hud.showHitMarker(hit.damage);
         this._showImpactEffect(hit.point, direction.clone().negate(), true);
-        this.systems.audioManager.playAtPosition('hit', hit.point, 'HIT');
       }
       this.player.firstPersonWeapon.playShoot();
       this.systems.animationManager.playWeapon('shoot');
@@ -325,7 +334,6 @@ class Game {
 
             this.ui.hud.showHitMarker(finalDamage);
             this._showImpactEffect(hitData.point, new THREE.Vector3(0, 1, 0), true);
-            this.systems.audioManager.playAtPosition('hit', bot.position, 'HIT');
           }
           bullet.alive = false;
           bullet.tracer.visible = false;
@@ -335,12 +343,7 @@ class Game {
 
     this.player.firstPersonWeapon.playShoot();
     this.systems.animationManager.playWeapon('shoot');
-
-    const shotSound = weapon.type === 'Rifle' ? 'gunshot_rifle' :
-                      weapon.type === 'Pistol' ? 'gunshot_pistol' :
-                      weapon.type === 'SMG' ? 'gunshot_smg' :
-                      weapon.type === 'Shotgun' ? 'gunshot_shotgun' : 'gunshot_rifle';
-    this.systems.audioManager.play(shotSound, 'WEAPON');
+    this._playWeaponSound(weapon);
 
     this.core.eventBus.emit('weapon:fired', {
       weapon: weapon.type,
@@ -389,6 +392,28 @@ class Game {
 
   _playMeleeSound() {
     this.systems.audioManager.play('knife_swing', 'WEAPON');
+  }
+
+  _playWeaponSound(weapon) {
+    if (weapon.automatic) {
+      const autoSound = weapon.type === 'Rifle' ? 'auto_rifle' :
+                        weapon.type === 'SMG' ? 'auto_smg' : 'auto_rifle';
+      if (!this._autoFireSound) {
+        this.systems.audioManager.play(autoSound, 'WEAPON', { loop: true });
+        this._autoFireSound = autoSound;
+      }
+    } else {
+      const shotSound = weapon.type === 'Pistol' ? 'gunshot_pistol' :
+                        weapon.type === 'Shotgun' ? 'gunshot_shotgun' : 'gunshot_rifle';
+      this.systems.audioManager.play(shotSound, 'WEAPON');
+    }
+  }
+
+  _onTriggerRelease() {
+    if (this._autoFireSound) {
+      this.systems.audioManager.fadeOutStop(this._autoFireSound, 0.2);
+      this._autoFireSound = null;
+    }
   }
 
   _fireBotWeapon(bot) {
@@ -1037,6 +1062,10 @@ class Game {
     }
     this.systems.weaponManager.onWeaponSwitch = (weapon) => {
       this.player.firstPersonWeapon.switchModel(weapon.type);
+      if (this._autoFireSound) {
+        this.systems.audioManager.fadeOutStop(this._autoFireSound, 0.15);
+        this._autoFireSound = null;
+      }
     };
 
     this._clearBots();
@@ -1101,6 +1130,7 @@ class Game {
     this.core.gameStateManager.on(States.MAIN_MENU, () => {
       this.pauseManager.resume();
       this.systems.audioManager?.stopAll();
+      this._autoFireSound = null;
       this.ui.hud?.hide();
 
       if (this._respawnTimer) {
@@ -1315,9 +1345,12 @@ class Game {
       this.footstepTimer = 0.4 / Math.max(speed / 4, 0.5);
     }
 
+    this._listenerForward.set(0, 0, -1).applyQuaternion(this.player.camera.quaternion);
+    this._listenerUp.set(0, 1, 0).applyQuaternion(this.player.camera.quaternion);
     this.systems.audioManager.updateListenerPosition(
       this.player.controller.position,
-      this.player.camera.quaternion
+      this._listenerForward,
+      this._listenerUp
     );
 
     this.player.controller.isPointerLocked =
@@ -1422,6 +1455,10 @@ class Game {
 
   _playerDied() {
     this.playerAlive = false;
+    if (this._autoFireSound) {
+      this.systems.audioManager.fadeOutStop(this._autoFireSound, 0.15);
+      this._autoFireSound = null;
+    }
     this.player.controller.velocity.set(0, 0, 0);
     this.ui.hud.updateHealth(0);
 
