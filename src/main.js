@@ -947,7 +947,7 @@ class Game {
   }
 
   _applyPredictedInput(input, pos) {
-    const dt = 1 / 20;
+    const dt = 1 / 30;
     const speed = input.sprint ? 7 : 5;
     const forward = input.forward ? 1 : input.backward ? -1 : 0;
     const strafe = input.right ? 1 : input.left ? -1 : 0;
@@ -1668,11 +1668,11 @@ class Game {
       if (inputs && this.playerAlive) {
         this._inputSeq++;
         const inputData = { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 }, seq: this._inputSeq };
-        this._pendingInputs.push({ seq: this._inputSeq, input: inputData, time: performance.now() });
-        if (this._pendingInputs.length > 120) this._pendingInputs.shift();
 
         if (this._inputSendAccum >= 1 / 30) {
-          this._inputSendAccum = 0;
+          this._inputSendAccum -= 1 / 30;
+          this._pendingInputs.push({ seq: this._inputSeq, input: inputData, time: performance.now() });
+          if (this._pendingInputs.length > 60) this._pendingInputs.shift();
           nm.sendInput(inputData);
         }
       }

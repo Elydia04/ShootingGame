@@ -92,7 +92,7 @@ export class InterpolationManager {
 
   update(deltaTime) {
     const now = performance.now();
-    const interpDelay = 0.1;
+    const interpDelay = 0.05;
 
     for (const [id, entity] of this.trackedEntities) {
       if (!entity.renderPosition || entity.positions.length === 0) continue;
