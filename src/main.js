@@ -478,24 +478,36 @@ class Game {
 
     this.core.eventBus.on('lobby:direct_connect', ({ ip, name, statusEl }) => {
       const url = ip.includes('://') ? ip : `ws://${ip}/ws`;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const defaultUrl = `${protocol}//${window.location.host}/ws`;
       const nm = this.network.networkManager;
       if (nm.isConnected()) nm.disconnect();
       this._multiHost = false;
       this._multiNetworkReady = false;
 
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        statusEl.textContent = 'Connection timed out';
+        statusEl.className = 'direct-connect-status error';
+      }, 5000);
+
       const unsub = nm.on('connected', () => {
+        clearTimeout(timeout);
+        if (timedOut) return;
         statusEl.textContent = 'Connected!';
         statusEl.className = 'direct-connect-status success';
         this.core.eventBus.emit('ui:show_screen', 'joinLobby');
         unsub();
       });
-      const unsubErr = nm.on('connect_error', (err) => {
-        statusEl.textContent = `Failed: ${err?.reason || 'connection refused'}`;
+      const unsubErr = nm.on('error', () => {
+        clearTimeout(timeout);
+        if (timedOut) return;
+        statusEl.textContent = 'Connection failed — check firewall and verify the IP';
         statusEl.className = 'direct-connect-status error';
         unsubErr();
       });
 
-      this._SERVER_URL = url;
       nm.connect(url);
     });
 
@@ -513,16 +525,33 @@ class Game {
     });
 
     this.core.eventBus.on('lobby:join', (data) => {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const defaultUrl = `${protocol}//${window.location.host}/ws`;
       const nm = this.network.networkManager;
       if (nm.isConnected()) nm.disconnect();
       this._multiHost = false;
       this._multiCode = data.code;
       this._multiNetworkReady = false;
+
+      let timedOut = false;
+      const timeout = setTimeout(() => {
+        timedOut = true;
+        this.core.eventBus.emit('lobby:error', 'Connection timed out — check the IP and make sure the server is running');
+      }, 5000);
+
       const unsub = nm.on('connected', () => {
+        clearTimeout(timeout);
+        if (timedOut) return;
         nm.send('join_room', { code: data.code, name: data.name || 'Player' });
         unsub();
       });
-      nm.connect(this._SERVER_URL);
+      const unsubErr = nm.on('error', () => {
+        clearTimeout(timeout);
+        if (timedOut) return;
+        this.core.eventBus.emit('lobby:error', 'Connection failed — check firewall and server status');
+        unsubErr();
+      });
+      nm.connect(defaultUrl);
     });
 
     this.core.eventBus.on('lobby:ready', (isReady) => {
@@ -645,8 +674,9 @@ class Game {
     });
 
     nm.on('error', (data) => {
-      console.error('[Multi]', data.message);
-      this.core.eventBus.emit('lobby:error', data.message);
+      const msg = typeof data === 'string' ? data : data?.message || 'Unknown connection error';
+      console.error('[Multi]', msg);
+      this.core.eventBus.emit('lobby:error', msg);
     });
 
     nm.stateHandler = (serverState) => {
