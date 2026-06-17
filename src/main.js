@@ -282,6 +282,21 @@ class Game {
       this.core.eventBus.emit('weapon:fired', {
         weapon: weapon.type, ammo: weapon.currentAmmo, reserve: weapon.reserveAmmo
       });
+
+      const muzzlePos = camera.position.clone();
+      muzzlePos.y -= 0.15;
+      for (let i = 0; i < (result.shots?.length || 1); i++) {
+        const spreadDir = direction.clone();
+        if (result.shots) {
+          spreadDir.x += result.shots[i].spreadX;
+          spreadDir.y += result.shots[i].spreadY;
+        } else {
+          spreadDir.x += (Math.random() - 0.5) * 0.005;
+          spreadDir.y += (Math.random() - 0.5) * 0.005;
+        }
+        spreadDir.normalize();
+        this.systems.bulletPool.fire(muzzlePos, spreadDir, 0, 300, 'multi_local');
+      }
       return;
     }
 
@@ -575,6 +590,7 @@ class Game {
     });
 
     nm.on('shot', (data) => {
+      if (data.playerId === this._multiLocalId) return;
       this._showMuzzleFlashRemote(data.playerId);
     });
 
@@ -1045,7 +1061,25 @@ class Game {
       this.ui.hud.hideDeathScreen();
     }
   }
-  _showMuzzleFlashRemote(playerId) {}
+  _showMuzzleFlashRemote(playerId) {
+    const renderState = this.network?.interpolation?.getRenderState(playerId);
+    if (!renderState || !renderState.position) return;
+
+    const origin = new THREE.Vector3(
+      renderState.position.x,
+      renderState.position.y + 1.0,
+      renderState.position.z
+    );
+    const yaw = renderState.rotation?.y ?? 0;
+    const pitch = renderState.rotation?.x ?? 0;
+    const dir = new THREE.Vector3(
+      -Math.sin(yaw) * Math.cos(pitch),
+      Math.sin(pitch),
+      -Math.cos(yaw) * Math.cos(pitch)
+    );
+
+    this.systems.bulletPool.fire(origin, dir, 0, 300, 'multi_remote');
+  }
 
   _trackMultiKill(data) {
     const killer = this._scoreboardStats.get(data.killer);
