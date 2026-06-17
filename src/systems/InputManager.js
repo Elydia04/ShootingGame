@@ -36,7 +36,7 @@ export class InputManager {
 
   _setupKeyboard() {
     document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.code === 'KeyW') {
+      if (e.ctrlKey || e.code === 'ControlLeft' || e.code === 'ControlRight') {
         e.preventDefault();
       }
       if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault();
