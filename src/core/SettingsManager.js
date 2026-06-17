@@ -59,7 +59,17 @@ export class SettingsManager {
     const result = this._deepClone(DEFAULTS);
     for (const category of Object.keys(DEFAULTS)) {
       if (saved[category]) {
-        Object.assign(result[category], saved[category]);
+        // Keep user's graphics, audio, etc — but always use fresh keybinds from defaults
+        // to avoid stale browser-conflicting bindings surviving updates
+        if (category === 'controls') {
+          const savedKeybinds = saved[category].keybinds;
+          delete saved[category].keybinds;
+          Object.assign(result[category], saved[category]);
+          result[category].keybinds = this._deepClone(DEFAULTS.controls.keybinds);
+          saved[category].keybinds = savedKeybinds;
+        } else {
+          Object.assign(result[category], saved[category]);
+        }
       }
     }
     return result;
