@@ -69,7 +69,7 @@ class Game {
     this._inputSeq = 0;
     this._pendingInputs = [];
     this._reconcileTarget = new THREE.Vector3();
-    this._reconcileBlend = 0;
+    this._reconcileBlend = -1;
     this._remoteInterp = new Map();
     this._multiNetworkReady = false;
 
