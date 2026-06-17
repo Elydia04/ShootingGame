@@ -471,7 +471,7 @@ class Game {
       const unsub = nm.on('connected', () => {
         statusEl.textContent = 'Connected!';
         statusEl.className = 'direct-connect-status success';
-        this.core.eventBus.emit('ui:show_screen', 'multiLobby');
+        this.core.eventBus.emit('ui:show_screen', 'joinLobby');
         unsub();
       });
       const unsubErr = nm.on('connect_error', (err) => {
