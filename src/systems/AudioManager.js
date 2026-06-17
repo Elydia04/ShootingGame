@@ -231,6 +231,20 @@ export class AudioManager {
     return buffer;
   }
 
+  _generateFlyby() {
+    const sampleRate = this.context.sampleRate;
+    const length = Math.floor(sampleRate * 0.12);
+    const buffer = this.context.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const freq = 3000 - t * 20000;
+      const envelope = Math.exp(-t * 15) * 0.5;
+      data[i] = Math.sin(2 * Math.PI * freq * t) * envelope;
+    }
+    return buffer;
+  }
+
   _generateGunshot(decayFast, decaySlow, mix) {
     const sampleRate = this.context.sampleRate;
     const length = Math.floor(sampleRate * 0.15);
@@ -263,6 +277,7 @@ export class AudioManager {
     this.registerClip('reload', this._generateNoise(0.25, 6, false), 0.15, 1.0);
 
     this.registerClip('knife_swing', this._generateNoise(0.06, 30, true), 0.35, 1.1);
+    this.registerClip('bullet_flyby', this._generateFlyby(), 0.3, 1.0);
   }
 
   dispose() {

@@ -126,6 +126,9 @@ class Game {
       this._showImpactEffect(hit.point, hit.normal, false);
       this.systems.audioManager.playAtPosition('hit', hit.point, 'HIT');
     });
+    this.systems.bulletPool.onNearMiss((pos) => {
+      this.systems.audioManager.playAtPosition('bullet_flyby', pos, 'WEAPON', { volume: 0.25 });
+    });
 
     this.systems.matchManager = new MatchManager();
 
@@ -1193,6 +1196,7 @@ class Game {
     this.systems.weaponManager.update(deltaTime);
 
     const collidables = this.getCollidables();
+    this.systems.bulletPool.playerPosition = this.player.controller?.position || null;
     this.systems.bulletPool.update(deltaTime, collidables);
 
     this.systems.animationManager.update(deltaTime);

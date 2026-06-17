@@ -15,6 +15,7 @@ export class Bullet {
     this.damage = 0;
     this.tracer = null;
     this._trailDir = new THREE.Vector3();
+    this.nearMissPlayed = false;
   }
 
   init(origin, direction, speed = BULLET_SPEED, damage = 20, owner = null) {
@@ -24,6 +25,8 @@ export class Bullet {
     this.alive = true;
     this.owner = owner;
     this.damage = damage;
+
+    this.nearMissPlayed = false;
 
     if (this.tracer) {
       this.tracer.position.copy(origin);
@@ -64,6 +67,7 @@ export class Bullet {
     this.lifetime = 0;
     this.owner = null;
     this.damage = 0;
+    this.nearMissPlayed = false;
     if (this.tracer) this.tracer.visible = false;
   }
 
@@ -85,6 +89,8 @@ export class BulletPool {
     );
     this.raycaster = new THREE.Raycaster();
     this.hitCallback = null;
+    this.nearMissCallback = null;
+    this.playerPosition = null;
   }
 
   _createBullet() {
@@ -117,6 +123,7 @@ export class BulletPool {
 
   update(deltaTime, collidables = []) {
     const toRemove = [];
+    const NEAR_MISS_DIST = 4;
 
     this.pool.forEachActive((bullet) => {
       const prevPos = bullet.position.clone();
@@ -128,6 +135,18 @@ export class BulletPool {
 
       const direction = bullet.position.clone().sub(prevPos);
       const dist = direction.length();
+
+      if (this.playerPosition && bullet.owner === 'bot' && !bullet.nearMissPlayed) {
+        const dx = bullet.position.x - this.playerPosition.x;
+        const dz = bullet.position.z - this.playerPosition.z;
+        const dy = bullet.position.y - this.playerPosition.y;
+        if (dx * dx + dz * dz + dy * dy < NEAR_MISS_DIST * NEAR_MISS_DIST) {
+          bullet.nearMissPlayed = true;
+          if (this.nearMissCallback) {
+            this.nearMissCallback(bullet.position.clone());
+          }
+        }
+      }
 
       if (dist > 0.001 && collidables.length > 0) {
         this.raycaster.set(prevPos, direction.normalize());
@@ -190,6 +209,10 @@ export class BulletPool {
 
   onHit(callback) {
     this.hitCallback = callback;
+  }
+
+  onNearMiss(callback) {
+    this.nearMissCallback = callback;
   }
 
   clear() {
