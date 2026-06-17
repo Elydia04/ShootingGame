@@ -19,7 +19,7 @@ const DEFAULTS = {
       left: 'KeyA',
       right: 'KeyD',
       jump: 'Space',
-      crouch: 'ControlLeft',
+      crouch: 'KeyC',
       sprint: 'ShiftLeft',
       reload: 'KeyR',
       shoot: 'Mouse0',

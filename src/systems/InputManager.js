@@ -179,7 +179,7 @@ export class InputManager {
     c.inputs.right = k.has('KeyD');
     c.inputs.jump = k.has('Space');
     c.inputs.sprint = k.has('ShiftLeft') || k.has('ShiftRight');
-    c.inputs.crouch = k.has('ControlLeft') || k.has('ControlRight');
+    c.inputs.crouch = k.has(this.game.core.settingsManager.getKeybind('crouch'));
     c.inputs.reload = k.has('KeyR');
     c.inputs.shoot = k.has('Mouse0');
     c.inputs.aim = k.has('Mouse2');
