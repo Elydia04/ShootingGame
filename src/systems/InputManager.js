@@ -13,6 +13,7 @@ export class InputManager {
 
   _setupPointerLock() {
     document.addEventListener('click', (e) => {
+      this.game.systems.audioManager.resume();
       if (this.game.core.gameStateManager.is(States.PLAYING) && e.target === this.game.renderer.domElement) {
         this.game.pauseManager.requestPointerLock();
       }

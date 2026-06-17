@@ -191,15 +191,21 @@ export class AudioManager {
     }
   }
 
-  _generateNoise(duration, decayRate = 10) {
+  _generateNoise(duration, decayRate = 10, highFreq = true) {
     const sampleRate = this.context.sampleRate;
     const length = Math.floor(sampleRate * duration);
     const buffer = this.context.createBuffer(1, length, sampleRate);
     const data = buffer.getChannelData(0);
+    let last = 0;
     for (let i = 0; i < length; i++) {
       const t = i / sampleRate;
       const envelope = Math.exp(-t * decayRate);
-      data[i] = (Math.random() * 2 - 1) * envelope;
+      let noise = Math.random() * 2 - 1;
+      if (!highFreq) {
+        last += (noise - last) * 0.3;
+        noise = last;
+      }
+      data[i] = noise * envelope;
     }
     return buffer;
   }
@@ -225,27 +231,38 @@ export class AudioManager {
     return buffer;
   }
 
+  _generateGunshot(decayFast, decaySlow, mix) {
+    const sampleRate = this.context.sampleRate;
+    const length = Math.floor(sampleRate * 0.15);
+    const buffer = this.context.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const fast = Math.exp(-t * decayFast) * mix;
+      const slow = Math.exp(-t * decaySlow) * (1 - mix);
+      const envelope = fast + slow;
+      let noise = Math.random() * 2 - 1;
+      // Low-pass filter for the "boom" body
+      last += (noise - last) * 0.4;
+      data[i] = (noise * fast + last * slow) / (fast + slow + 0.001) * envelope;
+    }
+    return buffer;
+  }
+
   generateDefaultSounds() {
-    if (!this.initialized) return;
+    this.registerClip('gunshot_rifle', this._generateGunshot(60, 15, 0.7), 0.35, 1.0);
+    this.registerClip('gunshot_pistol', this._generateGunshot(50, 12, 0.6), 0.3, 1.4);
+    this.registerClip('gunshot_smg', this._generateGunshot(70, 18, 0.8), 0.25, 1.3);
+    this.registerClip('gunshot_shotgun', this._generateGunshot(40, 10, 0.5), 0.5, 0.9);
 
-    const gunshot = this._generateNoise(0.1, 30);
-    this.registerClip('gunshot_rifle', gunshot, 0.4, 1.0);
-    this.registerClip('gunshot_pistol', gunshot, 0.3, 1.5);
-    this.registerClip('gunshot_smg', gunshot, 0.25, 1.2);
-    this.registerClip('gunshot_shotgun', gunshot, 0.6, 0.8);
+    this.registerClip('footstep', this._generateNoise(0.06, 25, false), 0.25, 1.0);
+    this.registerClip('hit', this._generateNoise(0.05, 30, false), 0.4, 1.0);
+    this.registerClip('hit_leg', this._generateNoise(0.04, 25, false), 0.25, 0.8);
 
-    const footstep = this._generateTone(80, 0.08, 'square');
-    this.registerClip('footstep', footstep, 0.2, 1.0);
+    this.registerClip('reload', this._generateNoise(0.25, 6, false), 0.15, 1.0);
 
-    const hit = this._generateNoise(0.05, 40);
-    this.registerClip('hit', hit, 0.5, 1.0);
-    this.registerClip('hit_leg', hit, 0.3, 0.7);
-
-    const reload = this._generateNoise(0.3, 8);
-    this.registerClip('reload', reload, 0.25, 1.0);
-
-    const knifeSwing = this._generateNoise(0.08, 25);
-    this.registerClip('knife_swing', knifeSwing, 0.5, 1.2);
+    this.registerClip('knife_swing', this._generateNoise(0.06, 30, true), 0.35, 1.1);
   }
 
   dispose() {
