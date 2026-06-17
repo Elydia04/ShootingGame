@@ -461,6 +461,29 @@ class Game {
     this._multiNetworkReady = false;
     this._SERVER_URL = SERVER_URL;
 
+    this.core.eventBus.on('lobby:direct_connect', ({ ip, name, statusEl }) => {
+      const url = ip.includes('://') ? ip : `ws://${ip}/ws`;
+      const nm = this.network.networkManager;
+      if (nm.isConnected()) nm.disconnect();
+      this._multiHost = false;
+      this._multiNetworkReady = false;
+
+      const unsub = nm.on('connected', () => {
+        statusEl.textContent = 'Connected!';
+        statusEl.className = 'direct-connect-status success';
+        this.core.eventBus.emit('ui:show_screen', 'multiLobby');
+        unsub();
+      });
+      const unsubErr = nm.on('connect_error', (err) => {
+        statusEl.textContent = `Failed: ${err?.reason || 'connection refused'}`;
+        statusEl.className = 'direct-connect-status error';
+        unsubErr();
+      });
+
+      this._SERVER_URL = url;
+      nm.connect(url);
+    });
+
     this.core.eventBus.on('lobby:created', (data) => {
       const nm = this.network.networkManager;
       if (nm.isConnected()) nm.disconnect();
@@ -471,7 +494,7 @@ class Game {
         nm.send('create_room', { code: data.code, name: data.name || 'Player', config: data.config });
         unsub();
       });
-      nm.connect(SERVER_URL);
+      nm.connect(this._SERVER_URL);
     });
 
     this.core.eventBus.on('lobby:join', (data) => {
@@ -484,7 +507,7 @@ class Game {
         nm.send('join_room', { code: data.code, name: data.name || 'Player' });
         unsub();
       });
-      nm.connect(SERVER_URL);
+      nm.connect(this._SERVER_URL);
     });
 
     this.core.eventBus.on('lobby:ready', (isReady) => {

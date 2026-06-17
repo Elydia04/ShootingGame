@@ -145,6 +145,8 @@ export class UIManager {
       if (el) el.classList.remove('hidden');
     };
 
+    this.eventBus.on('ui:show_screen', (screenId) => showScreen(screenId));
+
     document.getElementById('btn-create-lobby')?.addEventListener('click', () => {
       this.multiLobby.isHost = true;
       const name = getName();
@@ -168,6 +170,20 @@ export class UIManager {
 
     document.getElementById('btn-multi-back')?.addEventListener('click', () => {
       this.gsm.transitionTo(States.MAIN_MENU);
+    });
+
+    document.getElementById('btn-direct-connect')?.addEventListener('click', () => {
+      const ip = document.getElementById('direct-ip-input')?.value?.trim();
+      if (!ip) return;
+      const statusEl = document.getElementById('direct-connect-status');
+      statusEl.textContent = 'Connecting...';
+      statusEl.className = 'direct-connect-status';
+      const name = getName();
+      this.eventBus.emit('lobby:direct_connect', { ip, name, statusEl });
+    });
+
+    document.getElementById('direct-ip-input')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('btn-direct-connect')?.click();
     });
 
     const readyToggle = (btn) => {
