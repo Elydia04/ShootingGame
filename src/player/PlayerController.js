@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { MovementController } from './MovementController.js';
 
+// PlayerController handles: camera, bob, flinch, stance, input routing.
+// Movement physics are delegated to this.movement (MovementController).
+// Do NOT add movement acceleration/collision/gravity here — use MovementController.
+
 const CROUCH_HEIGHT = 0.8;
 const NORMAL_HEIGHT = 1.8;
 const CROUCH_TRANSITION = 8.0;
@@ -156,6 +160,7 @@ export class PlayerController {
     this._updateYaw(dt);
     this._updateStance(dt);
 
+    this.movement.slowMultiplier = this.isSlowed ? this.slowMultiplier : 1;
     this.movement.collidables = collidables;
     this.movement.computeWish(this.inputs, this.euler.y);
     this.isSprinting = this.movement.applyMovement(dt, this.inputs);

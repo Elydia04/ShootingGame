@@ -1,5 +1,16 @@
 import * as THREE from 'three';
 
+// ─────────────────────────────────────────────
+// MovementController — all movement physics lives here
+// Do NOT add camera, input handling, or weapon logic to this file.
+//   - computeWish:  turn inputs + yaw into wish direction
+//   - applyMovement: acceleration / friction / speed limits
+//   - applyGravity:  gravity when airborne
+//   - integrate:     velocity → position
+//   - resolveCollisions: AABB push-out with step-up
+//   - checkGround:   ground detection + jump
+// ─────────────────────────────────────────────
+
 const GRAVITY = -20.0;
 const MAX_FALL = -30.0;
 const WALK_SPEED = 4.5;
@@ -21,6 +32,7 @@ export class MovementController {
     this.height = 1.8;
     this.radius = 0.4;
     this.collidables = [];
+    this.slowMultiplier = 1;
   }
 
   computeWish(inputs, yaw) {
@@ -35,7 +47,7 @@ export class MovementController {
   applyMovement(dt, inputs) {
     const sprint = inputs.sprint && inputs.forward && !inputs.backward && !inputs.left && !inputs.right && !inputs.crouch;
     const crouch = inputs.crouch;
-    const maxSpeed = crouch ? CROUCH_SPEED : (sprint ? SPRINT_SPEED : WALK_SPEED);
+    const maxSpeed = (crouch ? CROUCH_SPEED : (sprint ? SPRINT_SPEED : WALK_SPEED)) * this.slowMultiplier;
     const accel = this.grounded ? ACCEL : AIR_ACCEL;
 
     const wishSpeed = this.wishDir.length();
