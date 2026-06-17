@@ -61,6 +61,7 @@ class Game {
     this._errorCount = 0;
     this.paused = false;
     this._scoreboardStats = new Map();
+    this._scoreboardRefreshTimer = null;
     this._multiRespawnTimer = null;
     this._inputSeq = 0;
     this._pendingInputs = [];
@@ -1360,7 +1361,7 @@ class Game {
 
     const bot = this.bots.find(b => b.alive);
     if (bot) {
-      this.systems.matchManager.registerKill(bot.id, 'local', 'rifle', hitResult.region);
+      this.systems.matchManager.registerKill(bot.id, 'local', 'rifle');
     }
 
     this._respawnTimer = setTimeout(() => {
@@ -1431,35 +1432,49 @@ class Game {
       const rows = this._buildScoreboardStats();
       this.scoreboardStore.setPlayers(rows);
     } else {
-      const rows = [{
-        id: 'local',
-        name: 'Player',
-        kills: this._soloStats?.kills ?? 0,
-        deaths: this._soloStats?.deaths ?? 0,
-        score: this._soloStats?.score ?? 0,
-        team: '',
-        ping: '-',
-        local: true
-      }];
-      for (const bot of this.bots) {
-        rows.push({
-          id: 'bot_' + (bot.id || Math.random()),
-          name: bot.name,
-          kills: bot.kills || 0,
-          deaths: bot.deaths || 0,
-          score: (bot.kills || 0) * 100,
-          team: '',
-          ping: '-',
-          local: false
-        });
+      this._refreshSoloScoreboard();
+      if (!this._scoreboardRefreshTimer) {
+        this._scoreboardRefreshTimer = setInterval(() => this._refreshSoloScoreboard(), 300);
       }
-      this.scoreboardStore.setPlayers(rows);
     }
     this.scoreboardStore.setVisible(true);
   }
 
+  _refreshSoloScoreboard() {
+    const matchStats = this.systems.matchManager.getMatchStats();
+    const localStats = this.systems.matchManager.getPlayerStats('local');
+    const rows = [{
+      id: 'local',
+      name: 'Player',
+      kills: localStats?.kills ?? 0,
+      deaths: localStats?.deaths ?? 0,
+      score: localStats?.score ?? 0,
+      team: '',
+      ping: '-',
+      local: true
+    }];
+    for (const bot of this.bots) {
+      const bs = matchStats?.players?.find(p => p.id === bot.id);
+      rows.push({
+        id: bot.id,
+        name: bot.name,
+        kills: bs?.kills ?? 0,
+        deaths: bs?.deaths ?? 0,
+        score: bs?.score ?? 0,
+        team: '',
+        ping: '-',
+        local: false
+      });
+    }
+    this.scoreboardStore.setPlayers(rows);
+  }
+
   _hideScoreboard() {
     this.scoreboardStore.setVisible(false);
+    if (this._scoreboardRefreshTimer) {
+      clearInterval(this._scoreboardRefreshTimer);
+      this._scoreboardRefreshTimer = null;
+    }
   }
 
   _updateRemoteInterpolation(deltaTime) {
