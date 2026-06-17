@@ -68,6 +68,8 @@ class Game {
     this._multiRespawnTimer = null;
     this._inputSeq = 0;
     this._pendingInputs = [];
+    this._reconcileTarget = new THREE.Vector3();
+    this._reconcileBlend = 0;
     this._remoteInterp = new Map();
     this._multiNetworkReady = false;
 
@@ -851,37 +853,42 @@ class Game {
       this._pendingInputs.splice(0, idx + 1);
     }
 
-    const serverPos = new THREE.Vector3(state.position.x, state.position.y || 0.9, state.position.z);
+    const serverPos = new THREE.Vector3(
+      state.position.x, state.position.y ?? 0.9, state.position.z
+    );
     const localPos = this.player.controller.position;
     const diff = localPos.distanceTo(serverPos);
 
-    if (diff > 1.5) {
+    if (diff > 2) {
       this.player.controller.teleport(serverPos.x, serverPos.y, serverPos.z);
+      this._reconcileBlend = 0;
       return;
     }
 
-    if (this._pendingInputs.length > 0 && diff > 0.05) {
-      this.player.controller.teleport(serverPos.x, serverPos.y, serverPos.z);
-      for (const p of this._pendingInputs) {
-        if (p.input) {
-          this._applyPredictedInput(p.input);
-        }
-      }
+    const predicted = serverPos.clone();
+    for (const p of this._pendingInputs) {
+      if (p.input) this._applyPredictedInput(p.input, predicted);
+    }
+
+    predicted.y = serverPos.y;
+    const correctedDiff = localPos.distanceTo(predicted);
+
+    if (correctedDiff > 0.01) {
+      this._reconcileTarget.copy(predicted);
+      this._reconcileBlend = 0;
     }
   }
 
-  _applyPredictedInput(input) {
-    const controller = this.player.controller;
-    if (!controller) return;
+  _applyPredictedInput(input, pos) {
     const dt = 1 / 20;
     const speed = input.sprint ? 7 : 5;
     const forward = input.forward ? 1 : input.backward ? -1 : 0;
     const strafe = input.right ? 1 : input.left ? -1 : 0;
     const yaw = input.euler?.y || 0;
-    const moveX = (forward * Math.sin(yaw) + strafe * Math.cos(yaw)) * speed * dt;
-    const moveZ = (forward * Math.cos(yaw) - strafe * Math.sin(yaw)) * speed * dt;
-    controller.position.x += moveX;
-    controller.position.z += moveZ;
+    const sinY = Math.sin(yaw);
+    const cosY = Math.cos(yaw);
+    pos.x += (forward * sinY + strafe * cosY) * speed * dt;
+    pos.z += (forward * cosY - strafe * sinY) * speed * dt;
   }
 
   _handleMultiSpawn(data) {}
@@ -1207,6 +1214,15 @@ class Game {
   _updatePlayer(deltaTime) {
     if (!this.core.gameStateManager.is(States.PLAYING)) return;
     if (!this.playerAlive) return;
+
+    if (this._reconcileBlend >= 0) {
+      const pos = this.player.controller.position;
+      pos.lerp(this._reconcileTarget, Math.min(1, deltaTime * 12));
+      if (pos.distanceTo(this._reconcileTarget) < 0.01) {
+        pos.copy(this._reconcileTarget);
+        this._reconcileBlend = -1;
+      }
+    }
 
     const dt = Math.min(deltaTime, 0.05);
     const collidables = this.getCollidables();
