@@ -166,11 +166,12 @@ export class NetworkManager {
   }
 
   _handleServerState(msg) {
+    const now = performance.now();
     const serverState = {
       sequence: msg.seq,
-      time: msg.time,
-      timestamp: performance.now(),
-      entities: msg.data.entities || [],
+      time: msg.time ?? now,
+      timestamp: now,
+      entities: msg.data.entities || {},
       worldTime: msg.data.worldTime
     };
 
@@ -183,8 +184,6 @@ export class NetworkManager {
     while (this._interpolationBuffer.length > 120) {
       this._interpolationBuffer.shift();
     }
-
-    this._reconcile(serverState);
 
     if (this.stateHandler) {
       this.stateHandler(serverState);
@@ -207,6 +206,10 @@ export class NetworkManager {
     if (this.reconciliationHandler) {
       this.reconciliationHandler(serverPos, this._pendingInputs);
     }
+  }
+
+  getPendingInputs() {
+    return this._pendingInputs;
   }
 
   getInterpolatedState(renderTimestamp) {
