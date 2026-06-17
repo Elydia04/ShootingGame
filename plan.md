@@ -54,14 +54,29 @@
 | `server/MatchManager.js` | Team scores, score_update event, `_getTeamScores()` |
 | `server/index.js` | (minor - team in room responses) |
 | `README.md` | Created |
+| `src/core/SettingsManager.js` | Added `shadowResolution`, `pixelRatio`, `toneMapping`, `fog` defaults |
+| `src/ui/SettingsMenu.js` | Added Shadow Resolution, Pixel Ratio, Tone Mapping, Fog controls; quality presets auto-fill; `onApply` callback |
+| `src/main.js` | `_applyGraphicsSettings()` — reads settings → configures renderer; impact particle pooling; collidable box caching; `_refreshSoloScoreboard()`; scoreboard auto-refresh timer; fixed `_playerDied` scope bug |
+| `src/systems/BotController.js` | `update()`/`_applyGravity()`/`_collisionResolve()` accept pre-computed collidable boxes; `_computeObstacleBoxes()` fallback |
+| `src/systems/MapManager.js` | Shadow map 2048→1024; stores `dirLight` ref on `scene.userData` |
+
+### Session 6: Scoreboard Fixes + Performance + Working Graphics Settings
+- **Solo scoreboard kills** — Was reading from `_soloStats` (never set). Now reads from `MatchManager.getPlayerStats()`.
+- **Solo scoreboard auto-refresh** — Previously built once on Tab press. Now refreshes every 300ms while held.
+- **`_playerDied` crash** — Referenced out-of-scope `hitResult.region`. Removed bad parameter.
+- **Impact particle memory leak** — Was creating new `SphereGeometry`/`MeshBasicMaterial` on every hit (no disposal). Now pooled — reuses up to 120 particles, no GC thrashing.
+- **Shadow map 2048→1024** — Halved shadow resolution for big GPU perf gain.
+- **Tone mapping ACES→Reinhard** — Lighter shader, especially on integrated GPUs.
+- **Bot physics optimization** — Was calling `updateWorldMatrix(true, false)` per-collidable per-bot per-frame (300+ calls). Now computed once per frame and shared.
+- **Graphics settings now work** — Quality presets (Low/Med/High/Ultra) actually change shadow res, pixel ratio, tone mapping, fog. Save applies immediately with no restart.
 
 ## What's Left
 
 ### High Priority
 - [ ] **Client-side prediction** — Merge the `NetworkManager` framework into the actual multiplayer path. Currently `_multiWs` is a separate raw WebSocket that doesn't use `NetworkManager`'s prediction/interpolation. Estimate: 4-8 hours
-- [ ] **Multiplayer scoreboard** — Tab currently only shows solo scoreboard. Add multiplayer player list with kills/deaths/ping
-- [ ] **Multiplayer chat** — Send chat messages through WebSocket to other players, not just local echo
-- [ ] **Respawn timer** — Death screen countdown only shows text, doesn't auto-respawn the player yet
+- [x] **Multiplayer scoreboard** — Done (Valorant-style with hold Tab, live refresh)
+- [x] **Multiplayer chat** — Done (`_setupChatInput` sends through NetworkManager, server relays to room)
+- [x] **Respawn timer** — Done (countdown + auto-respawn in multiplayer)
 
 ### Medium Priority
 - [ ] **Bot strafing** — Bots still sometimes stand still; increase `strafeChance` in config or add strafe-as-default behavior
@@ -77,10 +92,8 @@
 - [ ] **Bomb/defuse objective** — Gives CT vs T purpose beyond colors
 - [ ] **Kill cam** — Brief replay from killer's perspective on death
 - [ ] **Scoreboard ping** — Show actual ping in multiplayer
-- [ ] **Memory leak** — `_showImpactEffect` creates geometries/materials every call without disposal
 
 ### Bugs Noticed
-- `_showImpactEffect` creates new `SphereGeometry`/`MeshBasicMaterial` on every hit — leaks memory over long sessions
 - Fall damage (y < -20) still applies in multiplayer? Check if `onFallDamage` is set in MP mode
 - The `nul` file in project root — already added to `.gitignore`
 
