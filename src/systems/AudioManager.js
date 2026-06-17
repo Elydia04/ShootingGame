@@ -14,6 +14,7 @@ class AudioClip {
     this.buffer = buffer;
     this.volume = volume;
     this.pitch = pitch;
+    this.duration = 0;
   }
 }
 
@@ -25,6 +26,7 @@ export class AudioManager {
     this.categoryGains = new Map();
     this.clips = new Map();
     this.activeSources = new Set();
+    this._activeClipSources = new Map();
     this.listener = null;
     this.initialized = false;
     this.muted = false;
@@ -85,11 +87,28 @@ export class AudioManager {
     }
 
     try {
+      // Stop previous instance of the same clip to prevent stacking
+      if (this._activeClipSources.has(name)) {
+        const prev = this._activeClipSources.get(name);
+        try { prev.source.stop(); } catch (e) { /* already stopped */ }
+        this.activeSources.delete(prev.source);
+      }
+
       const source = this.context.createBufferSource();
       source.buffer = clip.buffer;
 
       const gainNode = this.context.createGain();
       gainNode.gain.value = (options.volume ?? clip.volume);
+
+      // Envelope to tighten tails and prevent stacking noise
+      if (clip.duration) {
+        const now = this.context.currentTime;
+        const envDuration = clip.duration;
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(options.volume ?? clip.volume, now + 0.003);
+        gainNode.gain.setValueAtTime(options.volume ?? clip.volume, now + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, now + envDuration);
+      }
 
       const panner = this.context.createPanner();
       panner.panningModel = 'HRTF';
@@ -120,9 +139,13 @@ export class AudioManager {
 
       source.start(0);
       this.activeSources.add(source);
+      this._activeClipSources.set(name, { source, gainNode });
 
       source.onended = () => {
         this.activeSources.delete(source);
+        if (this._activeClipSources.get(name)?.source === source) {
+          this._activeClipSources.delete(name);
+        }
       };
 
       return source;
@@ -271,16 +294,17 @@ export class AudioManager {
 
   async loadRealSounds() {
     const sounds = [
-      { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0 },
-      { name: 'gunshot_pistol', file: 'sounds/pistol_shot.wav', vol: 0.45, pitch: 1.0 },
-      { name: 'gunshot_smg', file: 'sounds/smg_shot.wav', vol: 0.4, pitch: 1.0 },
-      { name: 'gunshot_shotgun', file: 'sounds/shotgun_shot.wav', vol: 0.55, pitch: 1.0 },
+      { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0, dur: 0.2 },
+      { name: 'gunshot_pistol', file: 'sounds/pistol_shot.wav', vol: 0.45, pitch: 1.0, dur: 0.2 },
+      { name: 'gunshot_shotgun', file: 'sounds/shotgun_shot.wav', vol: 0.55, pitch: 1.0, dur: 0.25 },
     ];
-    const results = await Promise.allSettled(
-      sounds.map(s => this.loadClip(s.name, s.file, s.vol, s.pitch))
-    );
-    const loaded = results.filter(r => r.status === 'fulfilled').length;
-    if (loaded > 0) console.log(`[AudioManager] Loaded ${loaded}/${sounds.length} real sound files`);
+    const loaded = [];
+    for (const s of sounds) {
+      await this.loadClip(s.name, s.file, s.vol, s.pitch);
+      const clip = this.clips.get(s.name);
+      if (clip) { clip.duration = s.dur; loaded.push(s.name); }
+    }
+    if (loaded.length > 0) console.log(`[AudioManager] Loaded ${loaded.length}/${sounds.length} real sound files (${loaded.join(', ')})`);
   }
 
   generateDefaultSounds() {
