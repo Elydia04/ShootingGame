@@ -25,13 +25,12 @@ const SHARED = (() => {
   };
   const head = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.5 });
   const foot = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
-  const flash = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0 });
   const weapon = {};
   for (const [type, def] of Object.entries(WEAPON_MODELS)) {
     weapon[type] = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.5 });
     weapon[type].userData.weaponType = type;
   }
-  return { body, leg, head, foot, flash, weapon };
+  return { body, leg, head, foot, weapon };
 })();
 
 const SHARED_GEO = (() => {
@@ -73,7 +72,8 @@ export class RemotePlayer {
     this.weaponMesh.position.set(-0.15, 0.0, -0.4);
     this.group.add(this.weaponMesh);
 
-    this.flashMesh = new THREE.Mesh(SHARED_GEO.flash, SHARED.flash);
+    const flashMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0 });
+    this.flashMesh = new THREE.Mesh(SHARED_GEO.flash, flashMat);
     this.flashMesh.position.set(-0.15, 0.0, -0.65);
     this.group.add(this.flashMesh);
 

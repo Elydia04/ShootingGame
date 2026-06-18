@@ -659,7 +659,7 @@ class Game {
     });
 
     nm.on('kill', (data) => {
-      requestAnimationFrame(() => this.ui.hud?.addKillFeedEntry?.(data));
+      this.ui.hud?.addKillFeedEntry?.(data);
       this._trackMultiKill(data);
       if (data.victim === this._multiLocalId) {
         this.playerAlive = false;
@@ -667,10 +667,8 @@ class Game {
         this.player.controller.velocity.set(0, 0, 0);
         this.ui.hud.updateHealth(0);
         const respawnTime = data.respawnTime || 3;
-        requestAnimationFrame(() => {
-          this.ui.hud.showDeathScreen(data.killerName, respawnTime);
-          this._startMultiRespawnCountdown(respawnTime);
-        });
+        this.ui.hud.showDeathScreen(data.killerName, respawnTime);
+        this._startMultiRespawnCountdown(respawnTime);
       }
     });
 
