@@ -75,6 +75,7 @@ class Game {
     this._reconcileBlend = -1;
     this._remoteInterp = new Map();
     this._multiNetworkReady = false;
+    this._inputSendAccum = 0;
 
     this.scoreboardStore = new ScoreboardStore();
 
@@ -471,6 +472,7 @@ class Game {
     const SERVER_URL = `${protocol}//${window.location.host}/ws`;
     this._multiHost = false;
     this._multiCode = null;
+    this._multiLobbyCode = '';
     this._multiLocalTeam = null;
     this._multiPing = 0;
     this._multiNetworkReady = false;
@@ -629,6 +631,16 @@ class Game {
       }
     });
 
+    nm.on('joined_active_game', (data) => {
+      this._multiLobbyCode = data.code;
+      this.ui.uiManager.multiLobby.code = data.code;
+      document.getElementById('lobby-code').textContent = data.code;
+      document.getElementById('join-lobby-code').textContent = data.code;
+      const me = data.players.find(p => p.id === this._multiLocalId);
+      if (me) this._multiLocalTeam = me.team;
+      this.core.gameStateManager.transitionTo(States.PLAYING, { mode: 'multi', map: data.mapId, config: data.config });
+    });
+
     nm.on('shot', (data) => {
       if (data.playerId === this._multiLocalId) return;
       this._showMuzzleFlashRemote(data.playerId);
@@ -699,6 +711,7 @@ class Game {
     switch (type) {
       case 'room_created':
       case 'room_joined':
+        this._multiLobbyCode = data.code;
         this.ui.uiManager.multiLobby.code = data.code;
         this.ui.uiManager.setMultiLobbyPlayers(data.players);
         document.getElementById('lobby-code').textContent = data.code;
@@ -719,133 +732,11 @@ class Game {
           this.ui.hud?.setTeam?.(updated.team);
         }
         break;
-    }
-  }
-
-  _handleMultiMessage(msg) {
-    if (msg.type === 'connected') {
-      this._multiLocalId = msg.data.id;
-      return;
-    }
-
-    switch (msg.type) {
-      case 'room_created':
-      case 'room_joined':
-        this.ui.uiManager.multiLobby.code = msg.data.code;
-        this.ui.uiManager.setMultiLobbyPlayers(msg.data.players);
-        document.getElementById('lobby-code').textContent = msg.data.code;
-        document.getElementById('join-lobby-code').textContent = msg.data.code;
-        document.getElementById('btn-start-game')?.classList.toggle('hidden', !this._multiHost);
-        const me = msg.data.players.find(p => p.id === this._multiLocalId);
-        if (me) this._multiLocalTeam = me.team;
-        if (msg.type === 'room_joined') {
-          this.core.eventBus.emit('lobby:joined');
-        }
-        break;
-
-      case 'player_joined':
-      case 'player_left':
-      case 'player_ready':
-        this.ui.uiManager.setMultiLobbyPlayers(msg.data.players);
-        const updatedMe = msg.data.players?.find(p => p.id === this._multiLocalId);
-        if (updatedMe) {
-          this._multiLocalTeam = updatedMe.team;
-          this.ui.hud?.setTeam?.(updatedMe.team);
-        }
-        break;
-
-      case 'countdown':
-        this.ui.hud?.showCountdown?.(msg.data.time);
-        break;
-
-      case 'game_started':
-        this.core.gameStateManager.transitionTo(States.PLAYING, { mode: 'multi', map: msg.data.mapId, config: msg.data.config });
-        if (this._multiLocalTeam) {
-          this.ui.hud?.setTeam?.(this._multiLocalTeam);
-          this.player.thirdPersonCharacter?.setTeam?.(this._multiLocalTeam);
-        }
-        break;
-
-      case 'state':
-        this._applyMultiState(msg.data);
-        break;
-
-      case 'spawn':
-        this._handleMultiSpawn(msg.data);
-        break;
-
-      case 'despawn':
-        this._handleMultiDespawn(msg.data);
-        break;
-
-      case 'shot':
-        this._showMuzzleFlashRemote(msg.data.playerId);
-        break;
-
-      case 'hit':
-        this._showImpactEffect(msg.data.point, { x: 0, y: 1, z: 0 }, true);
-        if (msg.data.victimId === this._multiLocalId) {
-          this.playerHealth = Math.max(0, this.playerHealth - (msg.data.damage || 0));
-          this.ui.hud.updateHealth(this.playerHealth, this.playerMaxHealth);
-          this.ui.hud.showDamageVignette?.();
-        }
-        if (msg.data.shooterId === this._multiLocalId) {
-          this.ui.hud.showHitMarker?.(msg.data.damage);
-        }
-        break;
-
-      case 'kill':
-        this.ui.hud?.addKillFeedEntry?.(msg.data);
-        this._trackMultiKill(msg.data);
-        if (msg.data.victim === this._multiLocalId) {
-          this.playerAlive = false;
-          this.playerHealth = 0;
-          this.player.controller.velocity.set(0, 0, 0);
-          this.ui.hud.updateHealth(0);
-          const respawnTime = msg.data.respawnTime || 3;
-          this.ui.hud.showDeathScreen(msg.data.killerName, respawnTime);
-          this._startMultiRespawnCountdown(respawnTime);
-        }
-        break;
-
-      case 'respawn':
-        this._handleMultiRespawn(msg.data);
-        break;
-
-      case 'chat':
-        this._addChatMessage(msg.data.name, msg.data.message, msg.data.team);
-        break;
-
-      case 'match_end':
-        this._endMultiMatch(msg.data);
-        break;
-
-      case 'score_update':
-        if (this.ui.hud) {
-          this.ui.hud.updateScore({ team1: msg.data.teamScores.CT, team2: msg.data.teamScores.T });
-        }
-        break;
-
-      case 'code_updated':
-        this.ui.uiManager.multiLobby.code = msg.data.code;
-        document.getElementById('lobby-code').textContent = msg.data.code;
-        document.getElementById('join-lobby-code').textContent = msg.data.code;
-        break;
-
-      case 'error':
-        console.error('[Multi]', msg.data.message);
-        this.core.eventBus.emit('lobby:error', msg.data.message);
-        break;
-
-      case 'pong':
-        if (msg.data?.clientTime) {
-          const rtt = performance.now() - msg.data.clientTime;
-          this._multiPing = Math.round(rtt / 2);
-        }
+      case 'lobby_reset':
+        this.ui.uiManager.setMultiLobbyPlayers(data.players);
         break;
     }
   }
-
   _startMultiGame(data) {
     const mapId = data.map;
     const config = data.config || {};
@@ -861,7 +752,7 @@ class Game {
       this.player.controller.teleport(spawn.position.x, spawn.position.y, spawn.position.z);
     }
 
-    this.systems.matchManager.configure({ type: 'deathmatch', scoreLimit: config.scoreLimit || 50, timeLimit: (config.timeLimit || 10) * 60, teamMode: false });
+    this.systems.matchManager.configure({ type: 'deathmatch', scoreLimit: config.scoreLimit || 10, timeLimit: (config.timeLimit || 10) * 60, teamMode: false });
     this.systems.matchManager.registerPlayer('local', 'Player');
     this.systems.matchManager.start();
 
@@ -869,6 +760,14 @@ class Game {
     if (initialWeapon) {
       this.player.firstPersonWeapon.switchModel(initialWeapon.type);
     }
+
+    this.systems.weaponManager.onWeaponSwitch = (weapon) => {
+      this.player.firstPersonWeapon.switchModel(weapon.type);
+      if (this._autoFireSound) {
+        this.systems.audioManager.fadeOutStop(this._autoFireSound, 0.15);
+        this._autoFireSound = null;
+      }
+    };
 
     this._scoreboardStats = new Map();
     this._scoreboardStats.set(this._multiLocalId, { name: 'You', kills: 0, deaths: 0, team: this._multiLocalTeam });
@@ -878,7 +777,9 @@ class Game {
     this.network.interpolation.clear();
     this._setupChatInput();
 
+    this.ui.hud.hideDeathScreen();
     this.ui.hud.show();
+    this.scoreboardUI.setLobbyCode(this._multiLobbyCode || this.ui.uiManager.multiLobby?.code || '');
     this._clearBots();
     this._clearRemotePlayers();
 
@@ -900,6 +801,15 @@ class Game {
     overlay.addEventListener('click', handler);
   }
 
+  _despawnRemotePlayer(id) {
+    this.network.interpolation.removeEntity(id);
+    const idx = this.remotePlayers.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      this.remotePlayers[idx].dispose();
+      this.remotePlayers.splice(idx, 1);
+    }
+  }
+
   _clearRemotePlayers() {
     for (const rp of this.remotePlayers) rp.dispose();
     this.remotePlayers = [];
@@ -917,7 +827,12 @@ class Game {
 
     for (const [id, state] of Object.entries(entities)) {
       if (id === localId) {
-        this._reconcileLocalPlayer(state, serverState, nm);
+        if (this.playerAlive) this._reconcileLocalPlayer(state, serverState, nm);
+        continue;
+      }
+
+      if (!state.alive) {
+        this._despawnRemotePlayer(id);
         continue;
       }
 
@@ -935,8 +850,9 @@ class Game {
         rp = new RemotePlayer(this.scene, id, state.name || id);
         this.remotePlayers.push(rp);
       }
-      rp.alive = state.alive;
+      rp.alive = true;
       rp.team = state.team;
+      if (state.weapon) rp.setWeapon(state.weapon);
 
       if (!this._scoreboardStats.has(id)) {
         this._scoreboardStats.set(id, { name: state.name || id, kills: 0, deaths: 0, team: state.team });
@@ -1120,6 +1036,9 @@ class Game {
     );
 
     this.systems.bulletPool.fire(origin, dir, 0, 300, 'multi_remote');
+
+    const rp = this.remotePlayers.find(p => p.id === playerId);
+    if (rp) rp.playShoot();
   }
 
   _trackMultiKill(data) {
@@ -1772,6 +1691,7 @@ class Game {
     this.network.interpolation.update(deltaTime);
     for (const rp of this.remotePlayers) {
       if (!rp.alive) continue;
+      rp.update(deltaTime);
       const state = this.network.interpolation.getRenderState(rp.id);
       if (state?.position) {
         rp.group.position.set(state.position.x, state.position.y, state.position.z);
@@ -1788,19 +1708,16 @@ class Game {
       const inputs = this.player.controller?.inputs;
       const euler = this.player.controller?.euler;
 
-      if (this._inputSendAccum === undefined) this._inputSendAccum = 0;
       this._inputSendAccum += deltaTime;
 
-      if (inputs && this.playerAlive) {
+      if (inputs && this.playerAlive && this._inputSendAccum >= 1 / 30) {
+        this._inputSendAccum -= 1 / 30;
         this._inputSeq++;
-        const inputData = { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 }, seq: this._inputSeq };
-
-        if (this._inputSendAccum >= 1 / 30) {
-          this._inputSendAccum -= 1 / 30;
-          this._pendingInputs.push({ seq: this._inputSeq, input: inputData, time: performance.now() });
-          if (this._pendingInputs.length > 60) this._pendingInputs.shift();
-          nm.sendInput(inputData);
-        }
+        const currentWeapon = this.systems.weaponManager.getCurrentWeapon();
+        const inputData = { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 }, seq: this._inputSeq, weapon: currentWeapon?.type };
+        this._pendingInputs.push({ seq: this._inputSeq, input: inputData, time: performance.now() });
+        if (this._pendingInputs.length > 60) this._pendingInputs.shift();
+        nm.sendInput(inputData);
       }
     }
 

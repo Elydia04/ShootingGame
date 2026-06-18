@@ -1,6 +1,27 @@
 import { v4 as uuidv4 } from 'uuid';
 import { MatchManager } from './MatchManager.js';
 
+function aabbForBuilding(x, z, w, d, rot, h) {
+  const hw = w / 2, hd = d / 2;
+  const c = Math.abs(Math.cos(rot)), s = Math.abs(Math.sin(rot));
+  const ex = hw * c + hd * s;
+  const ez = hw * s + hd * c;
+  return { minX: x - ex, maxX: x + ex, minZ: z - ez, maxZ: z + ez, height: h };
+}
+
+function aabbForBox(x, z, w, d, h) {
+  return { minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2, height: h };
+}
+
+const WEAPON_FIRE_RATES = {
+  Pistol: 0.25,
+  Rifle: 0.1,
+  SMG: 0.07,
+  Shotgun: 0.8,
+  Sniper: 1.2,
+  Knife: 0.3,
+};
+
 const MAPS = {
   training_map: {
     id: 'training_map',
@@ -11,7 +32,74 @@ const MAPS = {
       { x: 10, y: 0, z: -10, type: 'player' },
       { x: 0, y: 0, z: -12, type: 'player' },
     ],
-    bounds: { size: 240, height: 8 }
+    bounds: { size: 240, height: 8 },
+    collidables: [
+      // Buildings (rotated AABB)
+      aabbForBuilding(-50, -40, 12, 10, 0.3, 4.5),
+      aabbForBuilding(-55, 10, 12, 10, -0.8, 4.5),
+      aabbForBuilding(-40, 60, 12, 10, 0.5, 4.5),
+      aabbForBuilding(30, -35, 12, 10, 0, 9),
+      aabbForBuilding(35, 55, 12, 10, Math.PI, 9),
+      aabbForBuilding(75, 0, 10, 9, 0.2, 13.5),
+      aabbForBuilding(-70, -75, 10, 8, 0.5, 4.5),
+      // Walls
+      aabbForBox(0, -30, 20, 1, 4),
+      aabbForBox(-25, -10, 1, 20, 4),
+      aabbForBox(10, 25, 20, 1, 4),
+      aabbForBox(25, 10, 1, 20, 4),
+      // Large objects
+      aabbForBox(-10, -5, 2, 2, 4),
+      aabbForBox(0, -8, 2, 2, 4),
+      aabbForBox(10, -5, 2, 2, 4),
+      aabbForBox(-5, 5, 2, 2, 4),
+      aabbForBox(5, 5, 2, 2, 4),
+      aabbForBox(0, 15, 4, 4, 2),
+      aabbForBox(-14, 0, 3, 0.5, 1.5),
+      aabbForBox(14, 0, 3, 0.5, 1.5),
+    ]
+  },
+  forest_map: {
+    id: 'forest_map',
+    spawns: [
+      { x: -10, y: 0, z: -10, type: 'player' },
+      { x: -15, y: 0, z: -15, type: 'player' },
+      { x: 10, y: 0, z: 10, type: 'player' },
+      { x: 15, y: 0, z: 15, type: 'player' },
+      { x: -5, y: 0, z: -5, type: 'player' },
+      { x: 5, y: 0, z: 5, type: 'player' },
+    ],
+    bounds: { size: 200, height: 8 },
+    collidables: [
+      aabbForBox(-5, -8, 3, 3, 2.5),
+      aabbForBox(10, 12, 2, 2, 1.5),
+      aabbForBox(-15, 18, 4, 4, 3),
+      aabbForBox(8, -15, 1.5, 1.5, 1),
+      aabbForBox(-10, -3, 8, 1, 3),
+      aabbForBox(10, 5, 1, 8, 3),
+      aabbForBox(-3, 12, 6, 1, 2.5),
+    ]
+  },
+  city_map: {
+    id: 'city_map',
+    spawns: [
+      { x: -25, y: 0, z: -25, type: 'player' },
+      { x: -22, y: 0, z: -22, type: 'player' },
+      { x: 25, y: 0, z: 25, type: 'player' },
+      { x: 22, y: 0, z: 22, type: 'player' },
+      { x: -10, y: 0, z: -10, type: 'player' },
+      { x: 10, y: 0, z: 10, type: 'player' },
+    ],
+    bounds: { size: 200, height: 20 },
+    collidables: [
+      aabbForBox(-20, -20, 8, 8, 12),
+      aabbForBox(20, -15, 6, 6, 8),
+      aabbForBox(-15, 20, 10, 10, 16),
+      aabbForBox(18, 18, 7, 7, 10),
+      aabbForBox(-15, 0, 30, 1, 4),
+      aabbForBox(15, 0, 1, 30, 4),
+      aabbForBox(5, -12, 20, 1, 3),
+      aabbForBox(-5, 12, 1, 20, 3),
+    ]
   }
 };
 
@@ -26,11 +114,15 @@ export class GameRoom {
     this.matchManager = new MatchManager();
     this.gameLoop = null;
     this.lastTime = 0;
-    this.spawnIndex = 0;
+    this.spawnIndices = { CT: 0, T: 0 };
 
     this.matchManager.on('start', () => {
       this.state = 'playing';
       this._broadcast({ type: 'game_started', data: { mapId: this.mapId, config: this.getConfig() } });
+    });
+
+    this.matchManager.on('countdown', (data) => {
+      this._broadcast({ type: 'countdown', data });
     });
 
     this.matchManager.on('kill', (data) => {
@@ -58,13 +150,21 @@ export class GameRoom {
 
   configure(config) {
     if (config.map) {
-      this.mapId = config.map;
-      this.mapData = MAPS[config.map] || MAPS.training_map;
+      if (!MAPS[config.map]) {
+        console.warn(`[GameRoom] Unknown map "${config.map}", falling back to training_map`);
+      }
+      this.mapId = MAPS[config.map] ? config.map : 'training_map';
+      this.mapData = MAPS[this.mapId];
     }
     const matchConfig = {};
-    if (config.timeLimit != null) matchConfig.timeLimit = config.timeLimit * 60;
-    if (config.scoreLimit != null) matchConfig.scoreLimit = config.scoreLimit;
+    if (config.timeLimit != null) {
+      matchConfig.timeLimit = Math.max(1, Math.min(60, config.timeLimit)) * 60;
+    }
+    if (config.scoreLimit != null) {
+      matchConfig.scoreLimit = Math.max(1, Math.min(999, config.scoreLimit));
+    }
     this.matchManager.configure(matchConfig);
+    console.log(`[GameRoom] Configured: scoreLimit=${this.matchManager.config.scoreLimit}, timeLimit=${this.matchManager.config.timeLimit}s, map=${this.mapId}`);
   }
 
   getConfig() {
@@ -122,16 +222,27 @@ export class GameRoom {
   }
 
   startGame() {
-    if (this.state !== 'lobby') return;
+    if (this.state !== 'lobby' && this.state !== 'ended') return;
+
+    if (this.state === 'ended') {
+      this.matchManager.reset();
+      this.spawnIndices = { CT: 0, T: 0 };
+      for (const [, p] of this.players) {
+        p.ready = false;
+        p._lastFireTime = 0;
+        p._lastInputTime = 0;
+        p.alive = true;
+        p.health = 100;
+      }
+      this._broadcast({ type: 'lobby_reset', data: { players: this.getPlayerList() } });
+    }
+
     this.matchManager.start();
     this.state = 'countdown';
     this._broadcast({ type: 'countdown', data: { time: this.matchManager.countdown } });
 
-    this.matchManager.on('countdown', (data) => {
-      this._broadcast({ type: 'countdown', data });
-    });
-
-    setTimeout(() => {
+    if (this._gameStartTimeout) clearTimeout(this._gameStartTimeout);
+    this._gameStartTimeout = setTimeout(() => {
       this.lastTime = performance.now();
       this.gameLoop = setInterval(() => this._tick(), 1000 / 30);
     }, this.matchManager.config.countdownTime * 1000);
@@ -140,9 +251,15 @@ export class GameRoom {
   handleInput(playerId, inputData, clientTime) {
     const player = this.players.get(playerId);
     if (!player || !player.alive) return;
+    const now = Date.now();
+    if (player._lastInputTime && now - player._lastInputTime < 10) return;
+    player._lastInputTime = now;
     if (inputData) {
       if (inputData.euler) {
         player.euler = { ...player.euler, ...inputData.euler };
+      }
+      if (inputData.weapon && WEAPON_FIRE_RATES[inputData.weapon]) {
+        player.weapon = inputData.weapon;
       }
       player.inputs = { ...player.inputs, ...inputData };
       if (inputData.seq != null) {
@@ -224,8 +341,49 @@ export class GameRoom {
     }
   }
 
+  _resolveCollisions(pos, vel, radius, height) {
+    const bottom = pos.y - height / 2;
+    const top = pos.y + height / 2;
+    const collidables = this.mapData.collidables || [];
+
+    for (const box of collidables) {
+      if (bottom > box.height || top < 0) continue;
+      if (bottom >= box.height) continue;
+
+      const cx = pos.x;
+      const cz = pos.z;
+      const cx2 = Math.max(box.minX, Math.min(cx, box.maxX));
+      const cz2 = Math.max(box.minZ, Math.min(cz, box.maxZ));
+      const dx = cx - cx2;
+      const dz = cz - cz2;
+      const d2 = dx * dx + dz * dz;
+
+      if (d2 < radius * radius) {
+        if (d2 > 0.0001) {
+          const dist = Math.sqrt(d2);
+          const overlap = radius - dist;
+          const nx = dx / dist;
+          const nz = dz / dist;
+          pos.x += nx * overlap;
+          pos.z += nz * overlap;
+          if (vel) {
+            const vDotN = vel.x * nx + vel.z * nz;
+            if (vDotN < 0) {
+              vel.x -= vDotN * nx;
+              vel.z -= vDotN * nz;
+            }
+          }
+        } else {
+          pos.x += radius;
+          if (vel) vel.x = Math.max(0, vel.x);
+        }
+      }
+    }
+  }
+
   _processPlayerMovement(player, dt) {
     this._applyServerMovement(player, dt);
+    const inputs = player.inputs;
 
     const gravity = -20;
     if (!player.grounded) {
@@ -237,21 +395,22 @@ export class GameRoom {
     player.position.z += player.velocity.z * dt;
     player.position.y += player.velocity.y * dt;
 
+    this._resolveCollisions(player.position, player.velocity, 0.4, 1.8);
+
     const halfBounds = this.mapData.bounds.size / 2 - 1;
     player.position.x = Math.max(-halfBounds, Math.min(halfBounds, player.position.x));
     player.position.z = Math.max(-halfBounds, Math.min(halfBounds, player.position.z));
 
     const height = 1.8;
-    const bottomY = 0;
 
     if (inputs.crouch) {
-      player.position.y = 0.6;
+      player.position.y = player.grounded ? 0.6 : player.position.y;
     } else {
       player.position.y = player.grounded ? 0.9 : player.position.y;
     }
 
-    if (player.velocity.y <= 0 && player.position.y <= 0.9) {
-      player.position.y = 0.9;
+    if (player.velocity.y <= 0 && player.position.y <= (inputs.crouch ? 0.6 : 0.9)) {
+      player.position.y = inputs.crouch ? 0.6 : 0.9;
       player.velocity.y = 0;
       player.grounded = true;
     }
@@ -266,7 +425,7 @@ export class GameRoom {
     if (!player.inputs.shoot) return;
 
     const now = Date.now();
-    const fireRate = 0.1;
+    const fireRate = WEAPON_FIRE_RATES[player.weapon] || 0.1;
     if (player._lastFireTime && (now - player._lastFireTime) < fireRate * 1000) return;
     player._lastFireTime = now;
 
@@ -372,6 +531,15 @@ export class GameRoom {
   }
 
   _broadcastState() {
+    const raw = this._buildStateMessage();
+    for (const [, player] of this.players) {
+      if (player.ws.readyState === 1) {
+        player.ws.send(raw);
+      }
+    }
+  }
+
+  _buildStateMessage() {
     const entities = {};
     for (const [id, player] of this.players) {
       const stats = this.matchManager.playerStats.get(id);
@@ -392,12 +560,7 @@ export class GameRoom {
         score: stats?.score || 0
       };
     }
-    const msg = { type: 'state', data: { entities, worldTime: Date.now() } };
-    for (const [, player] of this.players) {
-      if (player.ws.readyState === 1) {
-        player.ws.send(JSON.stringify({ ...msg, data: { ...msg.data, entities: { ...entities } } }));
-      }
-    }
+    return JSON.stringify({ type: 'state', data: { entities, worldTime: Date.now() } });
   }
 
   _broadcast(message) {
@@ -411,12 +574,26 @@ export class GameRoom {
 
   _getSpawn(team) {
     const spawns = this.mapData.spawns.filter(s => s.type === 'player');
-    let spawn = spawns[this.spawnIndex % spawns.length];
-    this.spawnIndex++;
+    if (spawns.length === 0) return { x: 0, y: 0.9, z: 0 };
+    const idx = (this.spawnIndices[team] || 0) % spawns.length;
+    this.spawnIndices[team] = idx + 1;
+    let spawn = { ...spawns[idx] };
     if (team === 'CT') {
-      spawn = { ...spawn, x: spawn.x - 8, z: spawn.z - 8 };
+      spawn.x -= 8; spawn.z -= 8;
     } else if (team === 'T') {
-      spawn = { ...spawn, x: spawn.x + 8, z: spawn.z + 8 };
+      spawn.x += 8; spawn.z += 8;
+    }
+    const occupied = new Set();
+    for (const [, p] of this.players) {
+      if (p.alive) occupied.add(`${Math.round(p.position.x)},${Math.round(p.position.z)}`);
+    }
+    for (let attempt = 0; attempt < spawns.length * 2; attempt++) {
+      const key = `${Math.round(spawn.x)},${Math.round(spawn.z)}`;
+      if (!occupied.has(key)) return spawn;
+      const fallback = (this.spawnIndices[team] + attempt) % spawns.length;
+      spawn = { ...spawns[fallback] };
+      if (team === 'CT') { spawn.x -= 8; spawn.z -= 8; }
+      else if (team === 'T') { spawn.x += 8; spawn.z += 8; }
     }
     return spawn;
   }

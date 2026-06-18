@@ -205,20 +205,30 @@ export class AudioManager {
 
   updateListenerPosition(position, forward, up) {
     if (!this.listener) return;
-    if (position) {
-      this.listener.positionX.value = position.x;
-      this.listener.positionY.value = position.y;
-      this.listener.positionZ.value = position.z;
-    }
-    if (forward) {
-      this.listener.forwardX.value = forward.x;
-      this.listener.forwardY.value = forward.y;
-      this.listener.forwardZ.value = forward.z;
-    }
-    if (up) {
-      this.listener.upX.value = up.x;
-      this.listener.upY.value = up.y;
-      this.listener.upZ.value = up.z;
+    try {
+      if (position) {
+        if (this.listener.positionX) {
+          this.listener.positionX.value = position.x;
+          this.listener.positionY.value = position.y;
+          this.listener.positionZ.value = position.z;
+        } else {
+          this.listener.setPosition(position.x, position.y, position.z);
+        }
+      }
+      if (forward && up) {
+        if (this.listener.forwardX) {
+          this.listener.forwardX.value = forward.x;
+          this.listener.forwardY.value = forward.y;
+          this.listener.forwardZ.value = forward.z;
+          this.listener.upX.value = up.x;
+          this.listener.upY.value = up.y;
+          this.listener.upZ.value = up.z;
+        } else {
+          this.listener.setOrientation(forward.x, forward.y, forward.z, up.x, up.y, up.z);
+        }
+      }
+    } catch (e) {
+      console.warn('[AudioManager] updateListenerPosition failed:', e);
     }
   }
 

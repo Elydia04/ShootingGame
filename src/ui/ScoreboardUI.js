@@ -1,15 +1,24 @@
 export class ScoreboardUI {
   constructor(store) {
     this.store = store;
+    this._lobbyCode = '';
     this._rows = new Map();
     this._overlay = null;
     this._panel = null;
     this._body = null;
+    this._codeEl = null;
     this._createDOM();
     this._storeUnsubs = [
       store.on('changed', (players) => this._sync(players)),
       store.on('visibility', (v) => this._animate(v))
     ];
+  }
+
+  setLobbyCode(code) {
+    this._lobbyCode = code || '';
+    if (this._codeEl) {
+      this._codeEl.textContent = this._lobbyCode ? `Lobby: ${this._lobbyCode}` : '';
+    }
   }
 
   _createDOM() {
@@ -31,6 +40,11 @@ export class ScoreboardUI {
       <span class="sb-h-ping">Ping</span>
     `;
     this._panel.appendChild(header);
+
+    this._codeEl = document.createElement('div');
+    this._codeEl.className = 'sb-code';
+    this._codeEl.textContent = '';
+    this._panel.appendChild(this._codeEl);
 
     this._body = document.createElement('div');
     this._body.className = 'sb-body';

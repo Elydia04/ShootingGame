@@ -148,7 +148,7 @@ export class MatchManager {
     if (!killer || !victim) return;
 
     killer.kills++;
-    killer.score += 100;
+    killer.score += 1;
     killer.streak++;
     victim.deaths++;
     victim.streak = 0;

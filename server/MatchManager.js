@@ -63,7 +63,7 @@ export class MatchManager {
     const victim = this.playerStats.get(victimId);
     if (!killer || !victim) return;
     killer.kills++;
-    killer.score += 100;
+    killer.score += 1;
     killer.streak++;
     victim.deaths++;
     victim.streak = 0;
@@ -71,6 +71,8 @@ export class MatchManager {
     this._emit('kill', { killer: killerId, killerName: killer.name, killerTeam: killer.team, victim: victimId, victimName: victim.name, victimTeam: victim.team, weapon });
 
     this._emit('score_update', { teamScores: this._getTeamScores() });
+
+    console.log(`[MatchManager] Kill: ${killer.name} → ${victim.name} (score=${killer.score}, limit=${this.config.scoreLimit})`);
 
     if (killer.score >= this.config.scoreLimit) {
       this.end({ winner: killerId, reason: 'Score limit reached' });
@@ -108,5 +110,17 @@ export class MatchManager {
   _emit(event, data) {
     const arr = this.listeners.get(event);
     if (arr) for (const cb of arr) cb(data);
+  }
+
+  reset() {
+    if (this._countdownInterval) {
+      clearInterval(this._countdownInterval);
+      this._countdownInterval = null;
+    }
+    this.state = 'waiting';
+    this.matchTime = 0;
+    this.countdown = 0;
+    this.playerStats.clear();
+    this.teamScores.clear();
   }
 }

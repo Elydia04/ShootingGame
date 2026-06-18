@@ -10,14 +10,12 @@ export class NetworkManager {
     this.clockSync = { offset: 0, rtt: 0 };
 
     this._updateTimer = 0;
-    this._pendingInputs = [];
     this._serverStates = [];
     this._interpolationBuffer = [];
     this._interpolationDelay = 100;
     this._sequenceNumber = 0;
 
     this.listeners = new Map();
-    this.inputHandler = null;
     this.stateHandler = null;
 
     this._pingInterval = null;
@@ -60,7 +58,6 @@ export class NetworkManager {
       this.ws = null;
     }
     this.connected = false;
-    this._pendingInputs = [];
     this._serverStates = [];
     this._interpolationBuffer = [];
     this._stopPing();
@@ -81,7 +78,6 @@ export class NetworkManager {
 
   sendInput(inputSnapshot) {
     const seq = this._sequenceNumber++;
-    this._pendingInputs.push({ seq, time: performance.now(), input: inputSnapshot });
 
     if (!this.connected) return;
 
@@ -187,28 +183,6 @@ export class NetworkManager {
     if (this.stateHandler) {
       this.stateHandler(serverState);
     }
-  }
-
-  _reconcile(serverState) {
-    const { entities } = serverState;
-    if (!entities || !entities.local) return;
-
-    const serverPos = entities.local;
-    const pendingIndex = this._pendingInputs.findIndex(
-      p => p.seq === serverState.sequence
-    );
-
-    if (pendingIndex !== -1) {
-      this._pendingInputs.splice(0, pendingIndex + 1);
-    }
-
-    if (this.reconciliationHandler) {
-      this.reconciliationHandler(serverPos, this._pendingInputs);
-    }
-  }
-
-  getPendingInputs() {
-    return this._pendingInputs;
   }
 
   getInterpolatedState(renderTimestamp) {

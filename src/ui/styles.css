@@ -1108,6 +1108,14 @@ body {
 .sb-h-name { flex: 2.2 !important; text-align: left !important; }
 .sb-h-team { flex: 0.7 !important; }
 
+.sb-code {
+  text-align: center;
+  padding: 8px 4px 4px;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.06rem;
+}
+
 .sb-body { margin-top: 2px; }
 
 .sb-row {

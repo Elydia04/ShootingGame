@@ -49,15 +49,13 @@ const server = http.createServer((req, res) => {
   });
 });
 
+function sanitizeName(name) {
+  if (!name || typeof name !== 'string') return 'Player';
+  return name.replace(/[^a-zA-Z0-9_\s-]/g, '').slice(0, 20).trim() || 'Player';
+}
+
 const wss = new WebSocketServer({ server, path: '/ws' });
 const rooms = new Map();
-
-function getOrCreateRoom(code) {
-  if (!rooms.has(code)) {
-    rooms.set(code, new GameRoom(code));
-  }
-  return rooms.get(code);
-}
 
 wss.on('connection', (ws) => {
   const playerId = uuidv4().slice(0, 8);
@@ -76,9 +74,14 @@ wss.on('connection', (ws) => {
     switch (msg.type) {
       case 'create_room': {
         const code = msg.data?.code || Math.random().toString(36).slice(2, 8).toUpperCase();
-        const room = getOrCreateRoom(code);
+        if (rooms.has(code)) {
+          ws.send(JSON.stringify({ type: 'error', data: { message: 'Room code already in use' } }));
+          return;
+        }
+        const room = new GameRoom(code);
+        rooms.set(code, room);
         if (msg.data?.config) room.configure(msg.data.config);
-        room.addPlayer(playerId, msg.data?.name || 'Player', ws);
+        room.addPlayer(playerId, sanitizeName(msg.data?.name), ws);
         currentRoom = room;
         ws.send(JSON.stringify({ type: 'room_created', data: { code, players: room.getPlayerList() } }));
         break;
@@ -94,14 +97,15 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'error', data: { message: 'Room full' } }));
           return;
         }
-        if (room.state !== 'lobby') {
-          ws.send(JSON.stringify({ type: 'error', data: { message: 'Game already in progress' } }));
-          return;
-        }
-        room.addPlayer(playerId, msg.data?.name || 'Player', ws);
+        room.addPlayer(playerId, sanitizeName(msg.data?.name), ws);
         currentRoom = room;
-        const config = room.getConfig();
-        ws.send(JSON.stringify({ type: 'room_joined', data: { code, players: room.getPlayerList(), config } }));
+        if (room.state === 'lobby') {
+          const config = room.getConfig();
+          ws.send(JSON.stringify({ type: 'room_joined', data: { code, players: room.getPlayerList(), config } }));
+        } else {
+          ws.send(JSON.stringify({ type: 'joined_active_game', data: { code, players: room.getPlayerList(), config: room.getConfig(), mapId: room.mapId } }));
+          ws.send(room._buildStateMessage());
+        }
         break;
       }
       case 'player_ready': {
@@ -120,7 +124,7 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'error', data: { message: 'No lobby available on this server' } }));
           return;
         }
-        targetRoom.addPlayer(playerId, msg.data?.name || 'Player', ws);
+        targetRoom.addPlayer(playerId, sanitizeName(msg.data?.name), ws);
         currentRoom = targetRoom;
         const config = targetRoom.getConfig();
         ws.send(JSON.stringify({ type: 'room_joined', data: { code: targetRoom.code, players: targetRoom.getPlayerList(), config } }));

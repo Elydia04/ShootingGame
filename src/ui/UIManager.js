@@ -137,7 +137,7 @@ export class UIManager {
     nameInputs.forEach(id => {
       document.getElementById(id)?.addEventListener('input', () => syncNameInputs(id));
     });
-    this._multiConfig = { map: 'training_map', timeLimit: 10, scoreLimit: 50 };
+    this._multiConfig = { map: 'training_map', timeLimit: 10, scoreLimit: 10 };
 
     const showScreen = (screenId) => {
       this._hideAllScreens();
@@ -200,7 +200,7 @@ export class UIManager {
       const map = document.querySelector('#multi-map-selection .map-card.selected')?.dataset.map || 'training_map';
       this._multiConfig.map = map;
       this._multiConfig.timeLimit = parseInt(document.getElementById('multi-time-limit')?.value || 10);
-      this._multiConfig.scoreLimit = parseInt(document.getElementById('multi-score-limit')?.value || 50);
+      this._multiConfig.scoreLimit = parseInt(document.getElementById('multi-score-limit')?.value || 10);
       this.eventBus.emit('lobby:start', { config: { ...this._multiConfig } });
     });
 

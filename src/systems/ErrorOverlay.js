@@ -5,28 +5,40 @@ export class ErrorOverlay {
     this.overlay.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);color:#ff4444;font-family:monospace;font-size:14px;padding:20px;z-index:9999;overflow:auto;white-space:pre-wrap;pointer-events:none';
     document.body.appendChild(this.overlay);
     this._errorCount = 0;
+    this._lastErrorTime = 0;
 
     window.addEventListener('error', (e) => {
+      if (e.filename && (e.filename.startsWith('chrome-extension://') || e.filename.startsWith('moz-extension://'))) return;
       e.preventDefault();
-      this._append(e.message, e.filename, e.lineno, e.colno, e.error);
+      const now = Date.now();
+      if (now - this._lastErrorTime < 200 || this._errorCount >= 20) return;
+      this._lastErrorTime = now;
+      this._errorCount++;
+      this.overlay.textContent += `[${new Date().toLocaleTimeString()}] ${e.message}\n  at ${e.filename || '?'}:${e.lineno || '?'}:${e.colno || '?'}\n${e.error?.stack || ''}\n\n`;
+      this.overlay.style.display = 'block';
     });
 
     window.addEventListener('unhandledrejection', (e) => {
       e.preventDefault();
       const err = e.reason;
-      this._append(err?.message || String(err), '', '', '', err instanceof Error ? err : null);
+      const stack = err instanceof Error ? (err.stack || '') : String(err);
+      if (stack.includes('chrome-extension://') || stack.includes('moz-extension://')) return;
+      const now = Date.now();
+      if (now - this._lastErrorTime < 200 || this._errorCount >= 20) return;
+      this._lastErrorTime = now;
+      this._errorCount++;
+      this.overlay.textContent += `[${new Date().toLocaleTimeString()}] ${err?.message || String(err)}\n${stack}\n\n`;
+      this.overlay.style.display = 'block';
     });
   }
 
-  _append(msg, source, line, col, err) {
-    this._errorCount++;
-    if (this._errorCount > 20) return;
-    this.overlay.textContent += `[${new Date().toLocaleTimeString()}] ${msg}\n  at ${source || '?'}:${line || '?'}:${col || '?'}\n${err?.stack || ''}\n\n`;
-    this.overlay.style.display = 'block';
-    console.error(msg, source, line, col, err);
-  }
-
   showError(err) {
-    this._append(err.message, '', '', '', err);
+    if (!err || this._errorCount >= 20) return;
+    const now = Date.now();
+    if (now - this._lastErrorTime < 200) return;
+    this._lastErrorTime = now;
+    this._errorCount++;
+    this.overlay.textContent += `[${new Date().toLocaleTimeString()}] ${err.message}\n${err.stack || ''}\n\n`;
+    this.overlay.style.display = 'block';
   }
 }
