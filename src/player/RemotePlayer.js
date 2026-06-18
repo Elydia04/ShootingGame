@@ -14,6 +14,39 @@ const WEAPON_MODELS = {
   Knife: { w: 0.02, h: 0.02, d: 0.12, color: 0x888888 },
 };
 
+const SHARED = (() => {
+  const body = {
+    CT: new THREE.MeshStandardMaterial({ color: TEAM_COLORS.CT.body, roughness: 0.6 }),
+    T: new THREE.MeshStandardMaterial({ color: TEAM_COLORS.T.body, roughness: 0.6 })
+  };
+  const leg = {
+    CT: new THREE.MeshStandardMaterial({ color: TEAM_COLORS.CT.leg, roughness: 0.7 }),
+    T: new THREE.MeshStandardMaterial({ color: TEAM_COLORS.T.leg, roughness: 0.7 })
+  };
+  const head = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.5 });
+  const foot = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+  const flash = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0 });
+  const weapon = {};
+  for (const [type, def] of Object.entries(WEAPON_MODELS)) {
+    weapon[type] = new THREE.MeshStandardMaterial({ color: def.color, metalness: 0.5 });
+    weapon[type].userData.weaponType = type;
+  }
+  return { body, leg, head, foot, flash, weapon };
+})();
+
+const SHARED_GEO = (() => {
+  const body = new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8);
+  const head = new THREE.SphereGeometry(0.18, 8, 8);
+  const leg = new THREE.BoxGeometry(0.12, 0.45, 0.12);
+  const foot = new THREE.BoxGeometry(0.08, 0.06, 0.14);
+  const flash = new THREE.SphereGeometry(0.04, 4, 4);
+  const weapon = {};
+  for (const [type, def] of Object.entries(WEAPON_MODELS)) {
+    weapon[type] = new THREE.BoxGeometry(def.w, def.h, def.d);
+  }
+  return { body, head, leg, foot, flash, weapon };
+})();
+
 export class RemotePlayer {
   constructor(scene, id, name) {
     this.id = id;
@@ -25,47 +58,38 @@ export class RemotePlayer {
     this._currentWeapon = 'Rifle';
     this._flashTimer = 0;
 
-    this.bodyMat = new THREE.MeshStandardMaterial({ color: TEAM_COLORS.CT.body, roughness: 0.6 });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8), this.bodyMat);
+    const body = new THREE.Mesh(SHARED_GEO.body, SHARED.body.CT);
     body.position.y = 0.1;
     body.castShadow = true;
     this.group.add(body);
     this.bodyMesh = body;
 
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xccaa88, roughness: 0.5 });
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 8), headMat);
+    const head = new THREE.Mesh(SHARED_GEO.head, SHARED.head);
     head.position.y = 0.75;
     this.group.add(head);
     this.headMesh = head;
 
-    this.weaponMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.5 });
-    this.weaponMesh = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.5), this.weaponMat);
+    this.weaponMesh = new THREE.Mesh(SHARED_GEO.weapon.Rifle, SHARED.weapon.Rifle);
     this.weaponMesh.position.set(-0.15, 0.0, -0.4);
     this.group.add(this.weaponMesh);
 
-    const flashGeo = new THREE.SphereGeometry(0.04, 4, 4);
-    const flashMat = new THREE.MeshBasicMaterial({ color: 0xffff00, transparent: true, opacity: 0 });
-    this.flashMesh = new THREE.Mesh(flashGeo, flashMat);
+    this.flashMesh = new THREE.Mesh(SHARED_GEO.flash, SHARED.flash);
     this.flashMesh.position.set(-0.15, 0.0, -0.65);
     this.group.add(this.flashMesh);
 
-    this.legMat = new THREE.MeshStandardMaterial({ color: TEAM_COLORS.CT.leg, roughness: 0.7 });
-    const legGeo = new THREE.BoxGeometry(0.12, 0.45, 0.12);
-    this.leftLeg = new THREE.Mesh(legGeo, this.legMat);
+    this.leftLeg = new THREE.Mesh(SHARED_GEO.leg, SHARED.leg.CT);
     this.leftLeg.position.set(-0.12, -0.675, 0);
     this.leftLeg.castShadow = true;
     this.group.add(this.leftLeg);
-    this.rightLeg = new THREE.Mesh(legGeo, this.legMat);
+    this.rightLeg = new THREE.Mesh(SHARED_GEO.leg, SHARED.leg.CT);
     this.rightLeg.position.set(0.12, -0.675, 0);
     this.rightLeg.castShadow = true;
     this.group.add(this.rightLeg);
 
-    const footMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
-    const footGeo = new THREE.BoxGeometry(0.08, 0.06, 0.14);
-    const lf = new THREE.Mesh(footGeo, footMat);
+    const lf = new THREE.Mesh(SHARED_GEO.foot, SHARED.foot);
     lf.position.set(0, -0.225, 0.04);
     this.leftLeg.add(lf);
-    const rf = new THREE.Mesh(footGeo, footMat);
+    const rf = new THREE.Mesh(SHARED_GEO.foot, SHARED.foot);
     rf.position.set(0, -0.225, 0.04);
     this.rightLeg.add(rf);
 
@@ -75,18 +99,17 @@ export class RemotePlayer {
 
   setTeam(team) {
     this.team = team;
-    const c = TEAM_COLORS[team] || TEAM_COLORS.CT;
-    this.bodyMat.color.setHex(c.body);
-    this.legMat.color.setHex(c.leg);
+    this.bodyMesh.material = SHARED.body[team] || SHARED.body.CT;
+    this.leftLeg.material = SHARED.leg[team] || SHARED.leg.CT;
+    this.rightLeg.material = SHARED.leg[team] || SHARED.leg.CT;
   }
 
   setWeapon(type) {
     if (type === this._currentWeapon || !WEAPON_MODELS[type]) return;
     this._currentWeapon = type;
     const def = WEAPON_MODELS[type];
-    this.weaponMesh.geometry.dispose();
-    this.weaponMesh.geometry = new THREE.BoxGeometry(def.w, def.h, def.d);
-    this.weaponMat.color.setHex(def.color);
+    this.weaponMesh.geometry = SHARED_GEO.weapon[type];
+    this.weaponMesh.material = SHARED.weapon[type];
     this.weaponMesh.position.set(-0.15, 0.0, -0.4);
     this.flashMesh.position.set(-0.15, 0.0, -0.4 - def.d / 2 - 0.02);
   }
@@ -152,9 +175,6 @@ export class RemotePlayer {
   }
 
   dispose() {
-    this.weaponMesh.geometry.dispose();
-    this.flashMesh.geometry.dispose();
-    this.flashMesh.material.dispose();
     this.scene.remove(this.group);
   }
 }
