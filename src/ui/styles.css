@@ -1159,6 +1159,9 @@ body {
   z-index: 100;
   pointer-events: none;
 }
+.death-screen.hidden {
+  display: none;
+}
 .death-info {
   font-size: 1.4rem;
   font-weight: bold;
