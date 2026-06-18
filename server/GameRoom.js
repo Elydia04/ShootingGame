@@ -119,6 +119,7 @@ export class GameRoom {
     this.matchManager.on('start', () => {
       this.state = 'playing';
       this._broadcast({ type: 'game_started', data: { mapId: this.mapId, config: this.getConfig() } });
+      this._broadcast({ type: 'score_update', data: { teamScores: this.matchManager._getTeamScores() } });
     });
 
     this.matchManager.on('countdown', (data) => {

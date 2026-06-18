@@ -659,7 +659,7 @@ class Game {
     });
 
     nm.on('kill', (data) => {
-      this.ui.hud?.addKillFeedEntry?.(data);
+      requestAnimationFrame(() => this.ui.hud?.addKillFeedEntry?.(data));
       this._trackMultiKill(data);
       if (data.victim === this._multiLocalId) {
         this.playerAlive = false;
@@ -667,8 +667,10 @@ class Game {
         this.player.controller.velocity.set(0, 0, 0);
         this.ui.hud.updateHealth(0);
         const respawnTime = data.respawnTime || 3;
-        this.ui.hud.showDeathScreen(data.killerName, respawnTime);
-        this._startMultiRespawnCountdown(respawnTime);
+        requestAnimationFrame(() => {
+          this.ui.hud.showDeathScreen(data.killerName, respawnTime);
+          this._startMultiRespawnCountdown(respawnTime);
+        });
       }
     });
 
@@ -993,6 +995,7 @@ class Game {
       if (remaining <= 0) {
         clearInterval(this._multiRespawnTimer);
         this._multiRespawnTimer = null;
+        this.ui.hud.hideDeathScreen();
       }
       this.ui.hud.updateDeathRespawnTimer(Math.max(0, remaining));
     }, 1000);
@@ -1064,6 +1067,11 @@ class Game {
   }
 
   _endMultiMatch(data) {
+    if (this._multiRespawnTimer) {
+      clearInterval(this._multiRespawnTimer);
+      this._multiRespawnTimer = null;
+    }
+    this.ui.hud?.hideDeathScreen();
     this.core.gameStateManager.transitionTo(States.MATCH_END, { mode: 'multi', ...data });
   }
 
@@ -1168,6 +1176,7 @@ class Game {
       }
     });
     this.ui.hud.updateViewToggleLabel(true);
+    this.ui.hud.hideDeathScreen();
     this.ui.hud.show();
     this.core.debugTools.setState('Playing');
   }

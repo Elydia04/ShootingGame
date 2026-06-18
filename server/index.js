@@ -104,6 +104,7 @@ wss.on('connection', (ws) => {
           ws.send(JSON.stringify({ type: 'room_joined', data: { code, players: room.getPlayerList(), config } }));
         } else {
           ws.send(JSON.stringify({ type: 'joined_active_game', data: { code, players: room.getPlayerList(), config: room.getConfig(), mapId: room.mapId } }));
+          ws.send(JSON.stringify({ type: 'score_update', data: { teamScores: room.matchManager._getTeamScores() } }));
           ws.send(room._buildStateMessage());
         }
         break;
