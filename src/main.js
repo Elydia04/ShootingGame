@@ -766,7 +766,10 @@ class Game {
     this.playerAlive = true;
     this.playerHealth = this.playerMaxHealth;
 
-    this.systems.mapManager.loadMap(mapId);
+    this.systems.mapManager.loadMap(mapId).then(() => {
+      this._refreshCollidables();
+      this._render();
+    });
     this.systems.spawnManager.loadFromMap(this.systems.mapManager.getMapData());
 
     const spawn = this.systems.spawnManager.getSpawn('player', null, []);
@@ -1123,7 +1126,10 @@ class Game {
     this.playerHealth = this.playerMaxHealth;
     this.playerAlive = true;
 
-    this.systems.mapManager.loadMap(config.map);
+    this.systems.mapManager.loadMap(config.map).then(() => {
+      this._refreshCollidables();
+      this._render();
+    });
     this.systems.spawnManager.loadFromMap(this.systems.mapManager.getMapData());
 
     // Decorative pistol prop
