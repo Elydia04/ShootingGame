@@ -49,6 +49,8 @@ class Game {
 
     this.bots = [];
     this.remotePlayers = [];
+    this._cachedCollidables = [];
+    this._cachedCollidableBoxes = [];
     this.gameMode = 'solo';
     this.playerHealth = 100;
     this.playerMaxHealth = 100;
@@ -84,12 +86,21 @@ class Game {
     this.pauseManager = null;
   }
 
+  _isMobile() {
+    return /Mobi|Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }
+
   async init() {
     console.log('[Game] Initializing...');
 
     this.core.eventBus = new EventBus();
     this.core.saveManager = new SaveManager();
     this.core.settingsManager = new SettingsManager(this.core.saveManager);
+    if (this._isMobile()) {
+      this.core.settingsManager.set('graphics', 'quality', 'low');
+      this.core.settingsManager.set('graphics', 'shadows', false);
+      this.core.settingsManager.set('graphics', 'pixelRatio', 0.75);
+    }
     this.core.gameStateManager = new GameStateManager();
     this.core.debugTools = new DebugTools();
 
@@ -200,7 +211,7 @@ class Game {
       powerPreference: 'default'
     });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.toneMappingExposure = 1.0;
     this._applyGraphicsSettings();
 
@@ -247,21 +258,32 @@ class Game {
     }
   }
 
-  getCollidables() {
-    const result = [];
-    for (const obj of this.systems.mapManager.objects) {
+  _refreshCollidables() {
+    const objects = this.systems.mapManager.objects;
+    this._cachedCollidables.length = 0;
+    this._cachedCollidableBoxes.length = 0;
+    for (const obj of objects) {
       if (obj.userData?.isWall || obj.userData?.isMapObject || obj.userData?.isBoundary) {
-        result.push(obj);
+        this._cachedCollidables.push(obj);
+        if (obj.geometry) {
+          if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+          obj.updateWorldMatrix(true, false);
+          this._cachedCollidableBoxes.push(obj.geometry.boundingBox.clone().applyMatrix4(obj.matrixWorld));
+        }
       }
       if (obj.isGroup) {
         obj.traverse((child) => {
           if (child.isMesh && (child.userData?.isWall || child.userData?.isMapObject)) {
-            result.push(child);
+            this._cachedCollidables.push(child);
+            if (child.geometry) {
+              if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+              child.updateWorldMatrix(true, false);
+              this._cachedCollidableBoxes.push(child.geometry.boundingBox.clone().applyMatrix4(child.matrixWorld));
+            }
           }
         });
       }
     }
-    return result;
   }
 
   _fireWeapon() {
@@ -1316,9 +1338,8 @@ class Game {
     this.systems.matchManager.update(deltaTime);
     this.systems.weaponManager.update(deltaTime);
 
-    const collidables = this.getCollidables();
     this.systems.bulletPool.playerPosition = this.player.controller?.position || null;
-    this.systems.bulletPool.update(deltaTime, collidables);
+    this.systems.bulletPool.update(deltaTime, this._cachedCollidables);
 
     this.systems.animationManager.update(deltaTime);
 
@@ -1350,8 +1371,7 @@ class Game {
     }
 
     const dt = Math.min(deltaTime, 0.05);
-    const collidables = this.getCollidables();
-    this.player.controller.update(dt, collidables, (controller) => {
+    this.player.controller.update(dt, this._cachedCollidables, (controller) => {
       const pos = controller.position;
       if (pos.y < -20) {
         controller.teleport(0, 5, 0);
@@ -1448,24 +1468,12 @@ class Game {
       document.pointerLockElement === this.renderer.domElement;
   }
 
-  _computeCollidableBoxes(collidables) {
-    const boxes = [];
-    for (const obj of collidables) {
-      if (!obj.geometry) continue;
-      const geo = obj.geometry;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      obj.updateWorldMatrix(true, false);
-      boxes.push(geo.boundingBox.clone().applyMatrix4(obj.matrixWorld));
-    }
-    return boxes;
-  }
-
   _updateBots(deltaTime) {
     if (!this.core.gameStateManager.is(States.PLAYING)) return;
     if (this.gameMode !== 'solo') return;
 
-    const collidables = this.getCollidables();
-    const boxes = this._computeCollidableBoxes(collidables);
+    const collidables = this._cachedCollidables;
+    const boxes = this._cachedCollidableBoxes;
 
     for (const bot of this.bots) {
       if (!bot.alive) continue;
@@ -1748,9 +1756,9 @@ class Game {
       if (this._fpsCount === undefined) this._fpsCount = 0;
       this._fpsAccum += rawDelta;
       this._fpsCount++;
-      if (this._fpsAccum >= 2) {
+      if (this._fpsAccum >= 1) {
         const fps = this._fpsCount / this._fpsAccum;
-        if (fps < 25 && !this._qualityReduced) {
+        if (fps < 30 && !this._qualityReduced) {
           this._qualityReduced = true;
           this.core.settingsManager.set('graphics', 'pixelRatio', 0.75);
           this.core.settingsManager.set('graphics', 'shadowResolution', 512);
@@ -1768,6 +1776,7 @@ class Game {
         return;
       }
 
+      this._refreshCollidables();
       this.inputManager.syncInputs();
       this._handleInput();
       this._updatePlayer(rawDelta);
