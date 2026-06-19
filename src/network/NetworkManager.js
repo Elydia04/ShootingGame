@@ -1,3 +1,8 @@
+// ── WebSocket network client ─────────────────────────
+// Sends input snapshots at 20 Hz; receives server state,
+// events (spawn/despawn/hit/kill/match_state).
+// Tracks latency via ping/pong.
+// Maintains an interpolation buffer for smooth rendering.
 const UPDATE_RATE = 20;
 const UPDATE_INTERVAL = 1000 / UPDATE_RATE;
 
@@ -63,6 +68,7 @@ export class NetworkManager {
     this._stopPing();
   }
 
+  // Generic message send.
   send(type, data = {}) {
     if (!this.connected || !this.ws) return;
 
@@ -76,6 +82,7 @@ export class NetworkManager {
     this.ws.send(message);
   }
 
+  // Specialised: send an input snapshot for server-authoritative movement.
   sendInput(inputSnapshot) {
     const seq = this._sequenceNumber++;
 
@@ -110,6 +117,8 @@ export class NetworkManager {
     if (!arr) return;
     for (const cb of arr) cb(data);
   }
+
+  // ── Message dispatch ──────────────────────────────
 
   _handleMessage(raw) {
     let msg;
@@ -160,6 +169,7 @@ export class NetworkManager {
     this.clockSync.offset = msg.serverTime - now + this.latency / 2;
   }
 
+  // Store incoming server state + push into interpolation buffer.
   _handleServerState(msg) {
     const now = performance.now();
     const serverState = {
@@ -185,6 +195,7 @@ export class NetworkManager {
     }
   }
 
+  // Returns { before, after, t } for rendering interpolation.
   getInterpolatedState(renderTimestamp) {
     const buffer = this._interpolationBuffer;
     if (buffer.length === 0) return null;
@@ -214,6 +225,7 @@ export class NetworkManager {
     };
   }
 
+  // Send input or heartbeat at the configured update rate.
   update(deltaTime, inputSnapshot = null) {
     if (!this.connected) return;
 

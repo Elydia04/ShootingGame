@@ -1,3 +1,7 @@
+// ── Entity interpolation for smooth remote rendering ─
+// Stores position/rotation history per entity, then linearly
+// interpolates at a delayed timestamp to mask network jitter.
+// Teleport detection (> maxSnapDistance) skips interpolation.
 export class InterpolationManager {
   constructor() {
     this.trackedEntities = new Map();
@@ -22,12 +26,14 @@ export class InterpolationManager {
     this.trackedEntities.delete(id);
   }
 
+  // Push a new server update for an entity.
   updateEntity(id, data) {
     const entity = this.trackedEntities.get(id);
     if (!entity) return;
 
     const now = performance.now();
 
+    // Teleport detection — if entity moved too far, snap instantly.
     if (entity.positions.length > 0) {
       const last = entity.positions[entity.positions.length - 1];
       if (last.position) {
@@ -90,6 +96,7 @@ export class InterpolationManager {
     entity.lastUpdate = now;
   }
 
+  // Compute interpolated render positions for all entities.
   update(deltaTime) {
     const now = performance.now();
     const interpDelay = 0.05;

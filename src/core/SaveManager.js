@@ -1,3 +1,7 @@
+// ── localStorage wrapper with in-memory cache ────────
+// All keys are prefixed with 'shooting_game_' to avoid
+// collisions with other apps. Reads cache first to avoid
+// redundant JSON.parse calls.
 const STORAGE_PREFIX = 'shooting_game_';
 
 export class SaveManager {

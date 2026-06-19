@@ -1,3 +1,7 @@
+// ── Third-person character model ─────────────────────
+// Full-body character visible in third-person camera view.
+// Composed of box/cylinder primitives with team-colored materials.
+// Currently a static model (no walk animation; isInAir unused).
 import * as THREE from 'three';
 
 const TEAM_COLORS = {
@@ -108,6 +112,7 @@ export class ThirdPersonCharacter {
     this.group.visible = false;
   }
 
+  // Currently just copies position/rotation; no walk animation applied.
   update(position, rotation, isMoving, isSprinting, isInAir) {
     if (!this.visible) return;
 

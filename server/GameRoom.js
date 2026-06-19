@@ -195,6 +195,8 @@ export class GameRoom {
       health: 100,
       weapon: 'Rifle',
       inputs: { forward: false, backward: false, left: false, right: false, jump: false, crouch: false, sprint: false, shoot: false, aim: false, reload: false },
+      // Edge-trigger: prevents re-jump while Space is held.
+      _jumpConsumed: false,
       lastProcessedSeq: 0
     };
     this.players.set(id, player);
@@ -416,9 +418,13 @@ export class GameRoom {
       player.grounded = true;
     }
 
-    if (inputs.jump && player.grounded) {
+    // Edge-triggered jump: only on first press frame, not while held.
+    if (inputs.jump && player.grounded && !player._jumpConsumed) {
       player.velocity.y = 8.0;
       player.grounded = false;
+      player._jumpConsumed = true;
+    } else if (!inputs.jump) {
+      player._jumpConsumed = false;
     }
   }
 

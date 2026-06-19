@@ -1,3 +1,10 @@
+// ── Persistent key/value settings with localStorage ──
+// Categories: graphics, controls, audio.
+//   - keybinds are always refreshed from defaults on load
+//     (to avoid stale bindings surviving game updates)
+//   - all other categories merge user settings over defaults
+//   - get(setting, key) / set(category, key, value)
+//   - getKeybind(action) / setKeybind(action, code)
 const DEFAULTS = {
   graphics: {
     quality: 'medium',
@@ -55,12 +62,11 @@ export class SettingsManager {
     return this._deepClone(DEFAULTS);
   }
 
+  // Merge saved over defaults, but always use fresh default keybinds.
   _mergeDefaults(saved) {
     const result = this._deepClone(DEFAULTS);
     for (const category of Object.keys(DEFAULTS)) {
       if (saved[category]) {
-        // Keep user's graphics, audio, etc — but always use fresh keybinds from defaults
-        // to avoid stale browser-conflicting bindings surviving updates
         if (category === 'controls') {
           const savedKeybinds = saved[category].keybinds;
           delete saved[category].keybinds;

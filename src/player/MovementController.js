@@ -33,6 +33,9 @@ export class MovementController {
     this.radius = 0.4;
     this.collidables = [];
     this.slowMultiplier = 1;
+    // Edge-trigger: only true on the frame jump was consumed,
+    // prevents re-jump while holding Space.
+    this._jumpConsumed = false;
   }
 
   computeWish(inputs, yaw) {
@@ -132,15 +135,24 @@ export class MovementController {
     }
   }
 
+  // ── Ground detection + jump ────────────────────────────
+  // 1. Start by assuming airborne (grounded = false).
+  // 2. Check floor-at-y=0 and collidable-object top surfaces.
+  // 3. If grounded, snap position & zero Y velocity.
+  // 4. Edge-triggered jump: only on first press, not while held.
   checkGround(pos, dt, inputs) {
     const bottom = pos.y - this.height * 0.5;
     this.grounded = false;
 
+    // Check #1: floor plane at y=0.
+    // Player is grounded if center ≤ height/2 + ε and falling.
     if (this.velocity.y <= 0 && pos.y <= this.height * 0.5 + 0.01) {
       this.grounded = true;
       this.groundY = 0;
     }
 
+    // Check #2: top surface of collidable objects (AABB).
+    // Only checked if not already grounded and not moving upward.
     if (!this.grounded && this.velocity.y <= 0) {
       for (const obj of this.collidables) {
         if (!obj.geometry) continue;
@@ -169,9 +181,16 @@ export class MovementController {
       if (this.velocity.y < 0) this.velocity.y = 0;
     }
 
-    if (inputs.jump && this.grounded) {
+    // Edge-triggered jump: only fire on the first frame Space is pressed.
+    // Holding Space after jumping will NOT re-trigger on landing
+    // until the key is released and pressed again.
+    if (inputs.jump && this.grounded && !this._jumpConsumed) {
       this.velocity.y = JUMP_FORCE;
       this.grounded = false;
+      this._jumpConsumed = true;
+    } else if (!inputs.jump) {
+      // Key released — allow next press to trigger jump.
+      this._jumpConsumed = false;
     }
   }
 }

@@ -1,3 +1,10 @@
+// ── Audio playback with procedural sound generation ──
+// Uses Web Audio API; supports 3D positional audio via PannerNode.
+// Falls back to procedural sounds (gunshots, footsteps, etc) via
+// noise/tone synthesis when real sound files are unavailable.
+//
+// Category routing: each sound maps to a gain node controlled by
+// settings (effectsVolume / musicVolume / voiceVolume).
 const AudioCategory = Object.freeze({
   WEAPON: 'effectsVolume',
   HIT: 'effectsVolume',
@@ -86,7 +93,7 @@ export class AudioManager {
     }
 
     try {
-      // Stop previous instance of the same clip to prevent stacking
+      // Stop previous instance of same clip to prevent stacking.
       if (this._activeClipSources.has(name)) {
         const prev = this._activeClipSources.get(name);
         try { prev.source.stop(); } catch (e) { /* already stopped */ }
@@ -232,17 +239,9 @@ export class AudioManager {
     }
   }
 
-  mute() {
-    this.muted = true;
-  }
-
-  unmute() {
-    this.muted = false;
-  }
-
-  toggleMute() {
-    this.muted = !this.muted;
-  }
+  mute() { this.muted = true; }
+  unmute() { this.muted = false; }
+  toggleMute() { this.muted = !this.muted; }
 
   resume() {
     if (this.context && this.context.state === 'suspended') {
@@ -250,7 +249,9 @@ export class AudioManager {
     }
   }
 
-  // Micro-ramp attack (3ms) and release (last 15% fade-out) for click-free immersive audio
+  // ── Procedural sound generators ─────────────────────
+
+  // Envelope with 3ms attack and 15% release fade-out.
   _envelope(i, len, rate) {
     const dur = len / rate;
     const atk = Math.min(0.003, dur * 0.1);
@@ -354,6 +355,7 @@ export class AudioManager {
     return buf;
   }
 
+  // Try loading real sound files from server; proceed silently if unavailable.
   async loadRealSounds() {
     const sounds = [
       { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0 },
@@ -367,6 +369,7 @@ export class AudioManager {
     if (loaded.length > 0) console.log(`[AudioManager] Loaded ${loaded.length}/${sounds.length} real sound files (${loaded.join(', ')})`);
   }
 
+  // Register all procedurally-generated default sounds.
   generateDefaultSounds() {
     this.registerClip('gunshot_rifle', this._generateGunshot(60, 15, 0.7), 0.45, 1.0);
     this.registerClip('gunshot_pistol', this._generateGunshot(50, 12, 0.6), 0.4, 1.4);

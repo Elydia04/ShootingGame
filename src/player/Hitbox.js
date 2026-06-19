@@ -1,3 +1,7 @@
+// ── Hitbox system (head / body / legs) ──────────────
+// Each region has a damage multiplier (HEAD=2.5x, BODY=1x, LEG=0.75x).
+// Supports sphere (head) and box (body, legs) ray intersection tests.
+// Debug mode renders wireframe boxes on screen.
 import * as THREE from 'three';
 
 export const HitRegion = Object.freeze({
@@ -131,6 +135,7 @@ export class Hitbox {
     this.group.visible = this.visible || enabled;
   }
 
+  // Return all region entries for raycasting.
   getRegions() {
     const out = [];
     for (const [region, data] of this.regions) {
@@ -146,6 +151,7 @@ export class Hitbox {
     return out;
   }
 
+  // Returns closest hit region or null.
   testRay(raycaster) {
     const results = [];
 
@@ -193,6 +199,7 @@ export class Hitbox {
     return null;
   }
 
+  // Sphere-ray intersection (head hitbox).
   _testSphere(raycaster, center, radius) {
     const ray = raycaster.ray;
     const toCenter = center.clone().sub(ray.origin);
@@ -208,6 +215,7 @@ export class Hitbox {
     return null;
   }
 
+  // AABB-ray intersection (body / leg hitboxes).
   _testBox(raycaster, center, halfExtents) {
     const ray = raycaster.ray;
 

@@ -1,3 +1,11 @@
+// ── Publish/subscribe event bus ───────────────────────
+// Decouples systems via emit/on — no direct imports needed
+// between event producers and consumers.
+//   - on:    subscribe, returns unsubscribe function
+//   - off:   remove a specific listener
+//   - emit:  fire event to all subscribers
+//   - once:  auto-unsubscribes after first fire
+//   - clear: remove all listeners
 export class EventBus {
   constructor() {
     this._listeners = new Map();

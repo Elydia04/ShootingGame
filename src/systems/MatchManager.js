@@ -1,3 +1,7 @@
+// ── Match lifecycle + scoring ────────────────────────
+// States: waiting → countdown → in_progress → ended.
+// Supports score-limit and time-limit win conditions,
+// team or free-for-all modes, player kill/damage tracking.
 export const MatchState = Object.freeze({
   WAITING: 'waiting',
   COUNTDOWN: 'countdown',
@@ -191,7 +195,6 @@ export class MatchManager {
 
   getMatchStats() {
     const players = Array.from(this.playerStats.values());
-
     players.sort((a, b) => b.score - a.score);
 
     return {
@@ -201,13 +204,8 @@ export class MatchManager {
     };
   }
 
-  getTeamScore(team) {
-    return this.teamScores.get(team) || 0;
-  }
-
-  getPlayerStats(id) {
-    return this.playerStats.get(id) || null;
-  }
+  getTeamScore(team) { return this.teamScores.get(team) || 0; }
+  getPlayerStats(id) { return this.playerStats.get(id) || null; }
 
   getTimeRemaining() {
     if (this.state !== MatchState.IN_PROGRESS) return 0;

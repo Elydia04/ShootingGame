@@ -1,3 +1,7 @@
+// ── Global error overlay ─────────────────────────────
+// Captures window.onerror and unhandledrejection events,
+// displays them in a fixed overlay. Caps at 20 errors,
+// deduplicates events < 200ms apart.
 export class ErrorOverlay {
   constructor() {
     this.overlay = document.createElement('div');

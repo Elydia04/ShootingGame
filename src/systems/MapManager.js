@@ -1,3 +1,9 @@
+// ── Map loading and environment building ─────────────
+// Reads a MapConfig (see core/types.js) and builds the scene:
+// ground, walls, objects (box/sphere/cylinder/ramp), trees,
+// buildings, lighting, skybox (with sun + clouds), bounds,
+// and decorative mountains.
+// All created objects are tracked for clean unload.
 import * as THREE from 'three';
 import { TreeGenerator } from './TreeGenerator.js';
 import { BuildingGenerator } from './BuildingGenerator.js';
@@ -62,6 +68,7 @@ export class MapManager {
     }
 
     if (mapData.trees) {
+      // Avoid placing trees inside building footprints.
       const buildingZones = (mapData.buildings || []).map(b => {
         const opts = b.options || {};
         const bw = (opts.width || (b.type === 'house3' ? 10 : 12)) / 2 + 2;
@@ -186,6 +193,7 @@ export class MapManager {
     this.scene.add(tree);
     this.objects.push(tree);
 
+    // Invisible collision proxy around the trunk.
     const trunkRadius = config.trunkRadius || 0.15 + Math.random() * 0.1;
     const trunkHeight = config.trunkHeight || 2.5 + Math.random() * 1.5;
     const collisionProxy = new THREE.Mesh(
@@ -220,16 +228,11 @@ export class MapManager {
 
   _createGeometry(config) {
     switch (config.type) {
-      case 'box':
-        return new THREE.BoxGeometry(config.width || 1, config.height || 1, config.depth || 1);
-      case 'sphere':
-        return new THREE.SphereGeometry(config.radius || 0.5, 16, 16);
-      case 'cylinder':
-        return new THREE.CylinderGeometry(config.radius || 0.5, config.radius || 0.5, config.height || 1, 16);
-      case 'ramp':
-        return new THREE.CylinderGeometry(0, config.radius || 0.5, config.height || 1, 4);
-      default:
-        return null;
+      case 'box': return new THREE.BoxGeometry(config.width || 1, config.height || 1, config.depth || 1);
+      case 'sphere': return new THREE.SphereGeometry(config.radius || 0.5, 16, 16);
+      case 'cylinder': return new THREE.CylinderGeometry(config.radius || 0.5, config.radius || 0.5, config.height || 1, 16);
+      case 'ramp': return new THREE.CylinderGeometry(0, config.radius || 0.5, config.height || 1, 4);
+      default: return null;
     }
   }
 
@@ -304,6 +307,7 @@ export class MapManager {
     this.scene.add(glow);
     this.objects.push(glow);
 
+    // Procedural cloud clusters scattered above the map.
     const cloudMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       transparent: true,
@@ -347,6 +351,7 @@ export class MapManager {
     }
   }
 
+  // Invisible boundary walls around the map perimeter.
   _createBounds(config) {
     const size = config.size || 200;
     const height = config.height || 12;
@@ -376,7 +381,7 @@ export class MapManager {
       this.objects.push(mesh);
     }
 
-    // Top caps to prevent jumping over
+    // Invisible top caps prevent jumping/climbing over walls.
     const topMat = new THREE.MeshStandardMaterial({
       color: 0x444444,
       transparent: true,
@@ -398,6 +403,7 @@ export class MapManager {
     }
   }
 
+  // Decorative cone mountains surrounding the playable area.
   _createMountains(boundsConfig) {
     const size = boundsConfig.size || 240;
     const mountainMat = new THREE.MeshStandardMaterial({
@@ -416,28 +422,21 @@ export class MapManager {
     const edge = size / 2 + 8;
 
     const peaks = [
-      // Distant mountain range - North side
       { x: -40, z: -edge - 15, h: 35, r: 50 },
       { x: 0, z: -edge - 20, h: 55, r: 60 },
       { x: 40, z: -edge - 15, h: 30, r: 45 },
       { x: 80, z: -edge - 10, h: 25, r: 40 },
       { x: -80, z: -edge - 10, h: 25, r: 40 },
-
-      // South side
       { x: -40, z: edge + 15, h: 30, r: 50 },
       { x: 0, z: edge + 20, h: 50, r: 55 },
       { x: 40, z: edge + 15, h: 35, r: 45 },
       { x: 80, z: edge + 10, h: 22, r: 40 },
       { x: -80, z: edge + 10, h: 22, r: 40 },
-
-      // West side
       { x: -edge - 15, z: -40, h: 35, r: 50 },
       { x: -edge - 20, z: 0, h: 55, r: 60 },
       { x: -edge - 15, z: 40, h: 30, r: 45 },
       { x: -edge - 10, z: 80, h: 22, r: 40 },
       { x: -edge - 10, z: -80, h: 22, r: 40 },
-
-      // East side
       { x: edge + 15, z: -40, h: 30, r: 50 },
       { x: edge + 20, z: 0, h: 50, r: 55 },
       { x: edge + 15, z: 40, h: 35, r: 45 },
@@ -459,7 +458,6 @@ export class MapManager {
       this.scene.add(mesh);
       this.objects.push(mesh);
 
-      // Snow cap
       if (p.h > 35) {
         const snowGeo = new THREE.ConeGeometry(p.r * 0.25, p.h * 0.3, segments);
         const snow = new THREE.Mesh(snowGeo, snowMat);
@@ -496,15 +494,7 @@ export class MapManager {
     console.log('[MapManager] Map unloaded');
   }
 
-  getMapData() {
-    return this.maps.get(this.currentMap);
-  }
-
-  getSpawnData() {
-    return this.spawns || [];
-  }
-
-  getCurrentMapId() {
-    return this.currentMap;
-  }
+  getMapData() { return this.maps.get(this.currentMap); }
+  getSpawnData() { return this.spawns || []; }
+  getCurrentMapId() { return this.currentMap; }
 }

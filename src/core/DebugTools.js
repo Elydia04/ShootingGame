@@ -1,3 +1,7 @@
+// ── On-screen debug overlay (toggled via F3) ─────────
+// Displays FPS, ping, position, game state, weapon, latency.
+// All metrics are updated via set* methods and rendered
+// to DOM elements with matching IDs.
 export class DebugTools {
   constructor() {
     this.enabled = false;

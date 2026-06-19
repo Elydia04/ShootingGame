@@ -1,3 +1,7 @@
+// ── Bullet entity + object pool ──────────────────────
+// Bullets are created on fire(), move at 300 units/s, expire after 2s.
+// Raycast against collidables each frame; near-miss detection for player.
+// Hitbox testing is separate (testBulletHitboxes).
 import * as THREE from 'three';
 import { ObjectPool } from './ObjectPool.js';
 
@@ -39,6 +43,7 @@ export class Bullet {
     }
   }
 
+  // Returns false when bullet expires or is dead.
   update(deltaTime) {
     if (!this.alive) return false;
 
@@ -121,6 +126,7 @@ export class BulletPool {
     return bullet;
   }
 
+  // Move bullets, raycast against world collidables, detect near-miss.
   update(deltaTime, collidables = []) {
     const toRemove = [];
     const NEAR_MISS_DIST = 4;
@@ -207,21 +213,11 @@ export class BulletPool {
     return false;
   }
 
-  onHit(callback) {
-    this.hitCallback = callback;
-  }
+  onHit(callback) { this.hitCallback = callback; }
+  onNearMiss(callback) { this.nearMissCallback = callback; }
 
-  onNearMiss(callback) {
-    this.nearMissCallback = callback;
-  }
-
-  clear() {
-    this.pool.releaseAll();
-  }
-
-  get activeCount() {
-    return this.pool.activeCount;
-  }
+  clear() { this.pool.releaseAll(); }
+  get activeCount() { return this.pool.activeCount; }
 
   dispose() {
     this.pool.disposeAll((bullet) => bullet.dispose());

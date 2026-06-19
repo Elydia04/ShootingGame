@@ -40,6 +40,10 @@ export class PlayerController {
 
     this.isInAir = false;
 
+    // ── Input state (level-triggered) ──────────────────────
+    // Set true on keydown, false on keyup (see handleKeyDown/Up).
+    // jump is consumed by MovementController.checkGround after
+    // firing (edge-triggered), so holding Space won't re-jump.
     this.inputs = {
       forward: false,
       backward: false,
@@ -153,6 +157,10 @@ export class PlayerController {
     }
   }
 
+  // ── Per-frame update ─────────────────────────────────────
+  // Order matters: wish → movement → gravity → integrate → collisions → ground
+  // checkGround reads this.inputs.jump and edge-triggers via its
+  // internal _jumpConsumed flag (see MovementController.checkGround).
   update(deltaTime, collidables = [], collisionCallback = null) {
     const dt = Math.min(deltaTime, 0.05);
 

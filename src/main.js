@@ -73,6 +73,7 @@ class Game {
     this._listenerUp = new THREE.Vector3();
     this._inputSeq = 0;
     this._pendingInputs = [];
+    this._predJumpConsumed = false;   // edge-trigger for predicted jump
     this._reconcileTarget = new THREE.Vector3();
     this._reconcileBlend = -1;
     this._remoteInterp = new Map();
@@ -933,6 +934,9 @@ class Game {
     const predPos = serverPos.clone();
     const predVel = { x: sv.x, y: sv.y, z: sv.z };
     const dt = 1 / 30;
+    // Edge-trigger carries forward naturally via _applyPredictedInput's
+    // else-if (!input.jump) branch — DO NOT reset here, or held-jump
+    // will re-fire every reconciliation.
     for (const p of this._pendingInputs) {
       if (p.input) this._applyPredictedInput(p.input, predPos, predVel, dt);
     }
@@ -946,6 +950,11 @@ class Game {
     }
   }
 
+  // ── Replay a single input frame for client-side prediction ──
+  // Mirrors the server's movement & jump logic so the client can
+  // predict its own position between server reconciliations.
+  // Jump uses edge-triggering (this._predJumpConsumed) to match
+  // the server and client MovementController behavior.
   _applyPredictedInput(input, pos, vel, dt) {
     const sprint = input.sprint && input.forward && !input.backward && !input.crouch;
     const crouch = input.crouch;
@@ -1001,8 +1010,12 @@ class Game {
     pos.z += vel.z * dt;
     pos.y += vel.y * dt;
 
-    if (input.jump && grounded) {
+    // Edge-triggered jump (mirrors client MovementController logic).
+    if (input.jump && grounded && !this._predJumpConsumed) {
       vel.y = jumpForce;
+      this._predJumpConsumed = true;
+    } else if (!input.jump) {
+      this._predJumpConsumed = false;
     }
   }
 

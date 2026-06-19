@@ -1,3 +1,10 @@
+// ── First-person weapon viewmodel ────────────────────
+// Manages weapon models attached to the camera, including:
+//   - bob / recoil / reload animations
+//   - ADS (aim down sights) pose
+//   - muzzle flash sprite + light
+//   - weapon switching with equip animation
+// Supports: M4A1 (default), Pistol, SMG, Shotgun, Sniper, Knife.
 import * as THREE from 'three';
 
 export class FirstPersonWeapon {
@@ -48,6 +55,7 @@ export class FirstPersonWeapon {
     this._resetPose();
   }
 
+  // Procedural muzzle flash sprite using Canvas2D.
   _createFlashSprite() {
     const canvas = document.createElement('canvas');
     canvas.width = 32;
@@ -67,6 +75,8 @@ export class FirstPersonWeapon {
     this.flashSprite.position.set(0, 0.02, 0.5);
     this.weaponGroup.add(this.flashSprite);
   }
+
+  // ── Weapon model builders ──────────────────────────
 
   _buildM4A1() {
     const bodyGeo = new THREE.BoxGeometry(0.06, 0.06, 0.5);
@@ -110,7 +120,6 @@ export class FirstPersonWeapon {
     this.grip.rotation.x = 0.1;
     this.weaponGroup.add(this.grip);
 
-    // Red dot sight (rifle) - reversed side
     const rdMount = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.006, 0.015), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.4 }));
     rdMount.position.set(-0.005, 0.048, -0.04);
     this.weaponGroup.add(rdMount);
@@ -179,6 +188,7 @@ export class FirstPersonWeapon {
     this.reloadDuration = duration;
   }
 
+  // ── Per-frame update ─────────────────────────────
   update(deltaTime, isMoving, isSprinting, weapon, animState, isADS = false) {
     const dt = Math.min(deltaTime, 0.05);
     this.isADS = isADS;
@@ -302,6 +312,8 @@ export class FirstPersonWeapon {
     }
   }
 
+  // ── Weapon switching ──────────────────────────────
+
   _clearWeapon() {
     while (this.weaponGroup.children.length > 0) {
       const child = this.weaponGroup.children[0];
@@ -401,7 +413,6 @@ export class FirstPersonWeapon {
     stock.position.set(0, -0.01, 0.18);
     this.weaponGroup.add(stock);
 
-    // Red dot sight (SMG) - reversed side
     const rdMount = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.005, 0.012), new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.4 }));
     rdMount.position.set(-0.004, 0.035, -0.05);
     this.weaponGroup.add(rdMount);
@@ -481,32 +492,27 @@ export class FirstPersonWeapon {
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.5 });
     const gripMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
 
-    // Blade (reversed - points toward player)
     const bladeGeo = new THREE.BoxGeometry(0.015, 0.002, 0.12);
     const blade = new THREE.Mesh(bladeGeo, metalMat);
     blade.position.set(0, 0, -0.08);
     this.weaponGroup.add(blade);
 
-    // Blade tip
     const tipGeo = new THREE.ConeGeometry(0.008, 0.04, 4);
     const tip = new THREE.Mesh(tipGeo, metalMat);
     tip.rotation.x = -Math.PI / 2;
     tip.position.set(0, 0.001, -0.15);
     this.weaponGroup.add(tip);
 
-    // Guard
     const guardGeo = new THREE.BoxGeometry(0.045, 0.005, 0.008);
     const guard = new THREE.Mesh(guardGeo, darkMat);
     guard.position.set(0, 0, -0.02);
     this.weaponGroup.add(guard);
 
-    // Handle (forward)
     const handleGeo = new THREE.BoxGeometry(0.025, 0.025, 0.055);
     const handle = new THREE.Mesh(handleGeo, gripMat);
     handle.position.set(0, 0, 0.02);
     this.weaponGroup.add(handle);
 
-    // Handle wrap rings
     const ringMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
     for (let i = 0; i < 3; i++) {
       const ring = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.028, 0.005), ringMat);
@@ -514,7 +520,6 @@ export class FirstPersonWeapon {
       this.weaponGroup.add(ring);
     }
 
-    // Pommel (forward)
     const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.014, 6, 6), darkMat);
     pommel.position.set(0, 0, 0.05);
     this.weaponGroup.add(pommel);

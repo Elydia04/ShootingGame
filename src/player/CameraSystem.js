@@ -1,3 +1,6 @@
+// ── Camera view management (first / third person) ───
+// Switches between first-person (weapon+arms visible) and
+// third-person (character model, smooth orbit behind player).
 import * as THREE from 'three';
 
 export const CameraView = Object.freeze({
@@ -11,6 +14,7 @@ export class CameraSystem {
     this.player = playerController;
     this.currentView = CameraView.FIRST_PERSON;
 
+    // Third-person: camera orbits behind offset by (y, z).
     this.thirdPersonOffset = new THREE.Vector3(0, 2.0, 4.0);
     this.thirdPersonLookAhead = 0.5;
     this.smoothSpeed = 5;
@@ -64,6 +68,7 @@ export class CameraSystem {
     this.camera.updateProjectionMatrix();
   }
 
+  // Orbit camera behind player, smoothly lerp to target position.
   _updateThirdPerson(dt, thirdPersonCharacter) {
     if (thirdPersonCharacter) {
       thirdPersonCharacter.show();
@@ -95,6 +100,7 @@ export class CameraSystem {
     this.camera.updateProjectionMatrix();
   }
 
+  // Get world-space muzzle position for current view.
   getMuzzleWorldPosition(firstPersonWeapon) {
     if (this.currentView === CameraView.FIRST_PERSON && firstPersonWeapon) {
       return firstPersonWeapon.getMuzzleWorldPosition();

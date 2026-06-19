@@ -1,3 +1,8 @@
+// ── Animation state machine ──────────────────────────
+// Tracks weapon animation state (idle/shoot/reload/etc.) and
+// player animation state (idle/walk/run/jump/etc.) separately.
+// Uses named clips with durations; auto-returns to idle after
+// non-looping clips finish. Crossfade via blendFactor.
 export const WeaponAnimState = Object.freeze({
   IDLE: 'idle',
   SHOOT: 'shoot',

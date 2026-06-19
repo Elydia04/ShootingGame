@@ -1,3 +1,7 @@
+// ── Finite state machine for application lifecycle ───
+// States: Loading → MainMenu → (SoloSetup | MultiLobby) → Playing → ...
+// Transitions are validated against a whitelist (TRANSITIONS map).
+// Listeners can attach per-state or wildcard ('*').
 export const States = Object.freeze({
   LOADING: 'Loading',
   MAIN_MENU: 'MainMenu',
@@ -26,6 +30,7 @@ export class GameStateManager {
     this.transitioning = false;
   }
 
+  // Subscribe to a specific state transition. Returns unsubscribe fn.
   on(state, callback) {
     if (!this.listeners.has(state)) {
       this.listeners.set(state, []);
@@ -40,6 +45,7 @@ export class GameStateManager {
     };
   }
 
+  // Convenience: listen to all state transitions.
   onChange(callback) {
     return this.on('*', callback);
   }
@@ -69,6 +75,7 @@ export class GameStateManager {
     return allowed && allowed.includes(state);
   }
 
+  // Attempt a state change. Rejects invalid transitions silently.
   transitionTo(newState, data = null) {
     if (this.transitioning) {
       console.warn(`[GameStateManager] Already transitioning, ignoring ${newState}`);

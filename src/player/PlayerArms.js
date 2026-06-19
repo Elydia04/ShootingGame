@@ -1,3 +1,6 @@
+// ── First-person arms viewmodel ──────────────────────
+// Simple forearm + hand meshes attached to the camera.
+// Shown in first-person, hidden in third-person.
 import * as THREE from 'three';
 
 export class PlayerArms {

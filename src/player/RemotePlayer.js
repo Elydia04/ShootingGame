@@ -1,3 +1,8 @@
+// ── Remote player visual representation ─────────────
+// Renders other players in multiplayer as a simple
+// stick-figure with body, head, legs, and a weapon mesh.
+// Team colors (CT blue / T red) are applied per-player.
+// Muzzle flash plays on shoot; legs swing when moving.
 import * as THREE from 'three';
 
 const TEAM_COLORS = {
@@ -14,6 +19,7 @@ const WEAPON_MODELS = {
   Knife: { w: 0.02, h: 0.02, d: 0.12, color: 0x888888 },
 };
 
+// Shared materials / geometries (one copy, reused across all RemotePlayer instances).
 const SHARED = (() => {
   const body = {
     CT: new THREE.MeshStandardMaterial({ color: TEAM_COLORS.CT.body, roughness: 0.6 }),
@@ -119,6 +125,7 @@ export class RemotePlayer {
     this.flashMesh.material.opacity = 1;
   }
 
+  // Update from server state — position, rotation, crouch, leg swing, muzzle flash.
   update(state, deltaTime) {
     if (typeof state === 'number') {
       deltaTime = state;
