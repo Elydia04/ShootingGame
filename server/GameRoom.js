@@ -377,8 +377,23 @@ export class GameRoom {
             }
           }
         } else {
-          pos.x += radius;
-          if (vel) vel.x = Math.max(0, vel.x);
+          // d2 ≈ 0 → player is inside the collidable.
+          // Push out along the nearest axis instead of always +X.
+          const dLeft = cx - box.minX;
+          const dRight = box.maxX - cx;
+          const dFront = cz - box.minZ;
+          const dBack = box.maxZ - cz;
+          const minX = Math.min(dLeft, dRight);
+          const minZ = Math.min(dFront, dBack);
+          if (minX <= minZ) {
+            const nx = dLeft < dRight ? -1 : 1;
+            pos.x += nx * (minX + radius);
+            if (vel) vel.x = 0;
+          } else {
+            const nz = dFront < dBack ? -1 : 1;
+            pos.z += nz * (minZ + radius);
+            if (vel) vel.z = 0;
+          }
         }
       }
     }
