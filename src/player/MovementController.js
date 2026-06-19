@@ -121,7 +121,8 @@ export class MovementController {
         const stepUp = box.max.y - bottom;
         if (stepUp > 0 && stepUp <= STEP_HEIGHT) {
           pos.y += stepUp;
-          this.velocity.y = 0;
+          // Only kill downward velocity — preserve jump/sprint-up momentum
+          if (this.velocity.y < 0) this.velocity.y = 0;
           continue;
         }
 
