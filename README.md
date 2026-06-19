@@ -2,21 +2,41 @@
 
 A browser-based 3D first-person shooter built with Three.js and Node.js — solo against bots or multiplayer with up to 8 players.
 
-**▶ [Play now at barilan.up.railway.app](https://barilan.up.railway.app/)**
-
 ## Features
 
 - **First-person shooter** — Mouse aim, WASD movement, scroll/slot weapons
-- **6 weapons** — Knife, Pistol, SMG, Rifle, Shotgun, Sniper (each with unique stats)
-- **Solo mode** — Fight AI bots on procedural maps
-- **Multiplayer** — WebSocket server, create/join rooms with 6-char code
-- **CT vs T teams** — Auto-balanced, friendly fire prevention, team-colored models
-- **Server-authoritative** — Movement, health, and hits validated server-side (30 tps)
+- **6 weapons** — Knife, Pistol, SMG, Rifle, Shotgun, Sniper (each with unique stats, red dot sights on Rifle/SMG)
+- **Solo mode** — Fight 10 AI bots with strafe AI on procedural maps
+- **Multiplayer** — WebSocket server, create/join rooms with 6-char code, CT vs T teams
+- **Server-authoritative** — Movement, health, hits validated server-side (30 tps), with client-side prediction
 - **Procedural textures** — Canvas-generated grass, brick, plaster, roof, concrete
-- **Red dot sights** — Rifle and SMG have functional red dot optics
 - **ADS (Aim Down Sights)** — Right-click to zoom and center weapon
 - **Third-person view** — Toggle with V key
+- **Scoreboard** — Tab to show kills/deaths/score (solo + multiplayer)
+- **Damage numbers** — Floating damage values, headshot icons in kill feed
+- **Kill feed** — Weapon icons, headshot indicator, team colors
+- **Death screen** — "Killed by X" overlay on death
+- **In-game chat** — Press Enter to type
+- **Graphics settings** — Quality presets (Low/Med/High/Ultra), shadow res, pixel ratio, tone mapping, fog
 - **Deployable** — Single-port server serves client + WebSocket
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| WASD | Move |
+| Mouse | Look / Aim |
+| Left Click | Shoot |
+| Right Click | ADS |
+| Scroll / 1-4 | Switch weapon |
+| Ctrl | Crouch |
+| Shift | Sprint |
+| R | Reload |
+| Alt | Lock/unlock pointer |
+| Escape | Pause / Menu |
+| V | Toggle camera view |
+| Tab | Scoreboard |
+| Enter | Chat |
 
 ## Quick Start
 
@@ -29,21 +49,6 @@ npm run server
 
 Open `http://localhost:3001` in your browser.
 
-## Controls
-
-| Key | Action |
-|-----|--------|
-| WASD | Move |
-| Mouse | Look / Aim |
-| Left Click | Shoot |
-| Right Click | ADS |
-| Scroll / 1-4 | Switch weapon |
-| Ctrl | Crouch |
-| Alt | Lock/unlock pointer |
-| Escape | Pause / Menu |
-| V | Toggle camera view |
-| Tab | Scoreboard |
-
 ## Multiplayer
 
 1. Click **Multiplayer** from the main menu
@@ -51,7 +56,7 @@ Open `http://localhost:3001` in your browser.
 3. **Join Room** with a code
 4. Host clicks **Start Game** when all players are ready
 
-All players on the same network can connect. For online play, deploy the server to a VPS or PaaS (Fly.io, Railway, Render).
+Players on the same network can connect directly. For online play, deploy the server to a VPS or PaaS (Fly.io, Railway, Render).
 
 ## Project Structure
 
@@ -70,7 +75,7 @@ All players on the same network can connect. For online play, deploy the server 
 
 ## Tech Stack
 
-- **Frontend**: Three.js, Vite, vanilla JS
+- **Frontend**: Three.js 0.160, Vite, vanilla JS
 - **Backend**: Node.js, ws (WebSocket), uuid
 - **Deploy**: Fly.io / Railway / Render (single-port HTTP + WS)
 
