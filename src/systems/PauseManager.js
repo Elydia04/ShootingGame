@@ -45,9 +45,16 @@ export class PauseManager {
   resume() {
     this.overlay.style.display = 'none';
     this.game.paused = false;
+    this._justResumed = true;
+    if (this._resumeDebounce) clearTimeout(this._resumeDebounce);
+    this._resumeDebounce = setTimeout(() => { this._justResumed = false; }, 300);
     if (this.game.core.gameStateManager.is(States.PLAYING)) {
       this.requestPointerLock();
     }
+  }
+
+  justResumed() {
+    return !!this._justResumed;
   }
 
   pause() {

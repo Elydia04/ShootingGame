@@ -28,7 +28,7 @@ export class InputManager {
       if (this.game.player.controller) {
         this.game.player.controller.isPointerLocked = locked;
       }
-      if (!locked && this.game.core.gameStateManager.is(States.PLAYING) && !this.game.pauseManager.isPaused() && !this.game.ui.settingsMenu?.isVisible()) {
+      if (!locked && this.game.core.gameStateManager.is(States.PLAYING) && !this.game.pauseManager.isPaused() && !this.game.pauseManager.justResumed() && !this.game.ui.settingsMenu?.isVisible()) {
         this.game.pauseManager.pause();
       }
     });
@@ -47,6 +47,12 @@ export class InputManager {
         e.preventDefault();
       }
       if (e.code === 'AltLeft' || e.code === 'AltRight') e.preventDefault();
+
+      const chatInput = document.getElementById('chat-input');
+      if (chatInput && document.activeElement === chatInput) {
+        const movement = ['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','ControlLeft','ControlRight'];
+        if (movement.includes(e.code)) return;
+      }
       this._keys.add(e.code);
 
       if (e.code === this.game.core.settingsManager.getKeybind('debug')) {
@@ -75,10 +81,7 @@ export class InputManager {
       }
 
       if (e.code === 'AltLeft' || e.code === 'AltRight') {
-        e.preventDefault();
-        if (document.pointerLockElement === this.game.renderer.domElement) {
-          try { document.exitPointerLock(); } catch (_) {}
-        } else if (this.game.core.gameStateManager.is(States.PLAYING)) {
+        if (this.game.core.gameStateManager.is(States.PLAYING) && document.pointerLockElement !== this.game.renderer.domElement) {
           this.game.pauseManager.requestPointerLock();
         }
       }

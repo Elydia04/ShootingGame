@@ -628,6 +628,8 @@ export class GameRoom {
     player.velocity = { x: 0, y: 0, z: 0 };
     player.health = 100;
     player.alive = true;
+    player._jumpConsumed = false;
+    player.inputs = { forward: false, backward: false, left: false, right: false, jump: false, crouch: false, sprint: false, shoot: false, aim: false, reload: false };
     this._broadcast({ type: 'respawn', data: { id, position: player.position } });
   }
 

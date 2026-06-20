@@ -307,8 +307,9 @@ class Game {
         weapon: weapon.type, ammo: weapon.currentAmmo, reserve: weapon.reserveAmmo
       });
 
-      const muzzlePos = camera.position.clone();
-      muzzlePos.y -= 0.15;
+      const muzzlePos = this.player.cameraSystem.getMuzzleWorldPosition(
+        this.player.firstPersonWeapon
+      );
       for (let i = 0; i < (result.shots?.length || 1); i++) {
         const spreadDir = direction.clone();
         if (result.shots) {
@@ -924,11 +925,12 @@ class Game {
     const localPos = this.player.controller.position;
     const diff = localPos.distanceTo(serverPos);
 
-    if (diff > 2) {
-      this.player.controller.teleport(serverPos.x, serverPos.y, serverPos.z);
-      this._reconcileBlend = 0;
-      return;
-    }
+      if (diff > 2) {
+        this.player.controller.teleport(serverPos.x, serverPos.y, serverPos.z);
+        this._predJumpConsumed = false;
+        this._reconcileBlend = 0;
+        return;
+      }
 
     const sv = state.velocity || { x: 0, y: 0, z: 0 };
     const predPos = serverPos.clone();
@@ -1117,14 +1119,16 @@ class Game {
       input.removeEventListener('keydown', this._chatInputHandler);
     }
     this._chatInputHandler = (e) => {
-      if (e.key === 'Enter' && input.value.trim()) {
-        const msg = input.value.trim();
-        input.value = '';
-        this.ui.hud.addChatMessage('You', msg);
-        this.ui.hud.hideChat();
-        if (this.gameMode === 'multi' && this.network.networkManager.isConnected()) {
-          this.network.networkManager.send('chat', { message: msg });
+      if (e.key === 'Enter') {
+        if (input.value.trim()) {
+          const msg = input.value.trim();
+          input.value = '';
+          this.ui.hud.addChatMessage('You', msg);
+          if (this.gameMode === 'multi' && this.network.networkManager.isConnected()) {
+            this.network.networkManager.send('chat', { message: msg });
+          }
         }
+        this.ui.hud.hideChat();
       }
       if (e.key === 'Escape') {
         this.ui.hud.hideChat();
@@ -1344,8 +1348,13 @@ class Game {
     if (this.player.controller.inputs.shoot) {
       const now = performance.now() / 1000;
       const weapon = this.systems.weaponManager.getCurrentWeapon();
-      if (weapon && weapon.automatic && weapon.canFire(now)) {
-        this._fireWeapon();
+      if (weapon && weapon.automatic) {
+        if (weapon.canFire(now)) {
+          this._fireWeapon();
+        }
+        if (weapon.currentAmmo <= 0 && this._autoFireSound) {
+          this._onTriggerRelease();
+        }
       }
     }
   }
@@ -1751,6 +1760,10 @@ class Game {
         if (this._pendingInputs.length > 60) this._pendingInputs.shift();
         nm.sendInput(inputData);
       }
+    }
+
+    if (this.gameMode === 'multi' && !this.player.controller?.inputs?.jump) {
+      this._predJumpConsumed = false;
     }
 
     this._multiPing = Math.round(nm.latency);

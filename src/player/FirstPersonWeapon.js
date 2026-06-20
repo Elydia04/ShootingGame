@@ -199,15 +199,11 @@ export class FirstPersonWeapon {
       const ease = 1 - Math.pow(1 - t, 3);
       const restPos = this._getRestPos();
       const restRot = this._getRestRot();
-      this.weaponGroup.position.set(
-        restPos.x * ease,
-        (restPos.y - 0.5) * (1 - ease) + restPos.y * ease,
-        (restPos.z + 0.3) * (1 - ease) + restPos.z * ease
-      );
+      this.weaponGroup.position.lerpVectors(this._equipStartPos, restPos, ease);
       this.weaponGroup.rotation.set(
-        restRot.x * ease,
-        restRot.y * ease,
-        restRot.z * ease
+        this._equipStartRot.x + (restRot.x - this._equipStartRot.x) * ease,
+        this._equipStartRot.y + (restRot.y - this._equipStartRot.y) * ease,
+        this._equipStartRot.z + (restRot.z - this._equipStartRot.z) * ease
       );
       if (t >= 1) {
         this.isEquipping = false;
@@ -346,7 +342,13 @@ export class FirstPersonWeapon {
     this._createFlashSprite();
     this.flashSprite.position.set(0, 0.02, mz + 0.04);
 
-    this._resetPose();
+    this.isReloading = false;
+    this._equipStartPos = this.weaponGroup.position.clone();
+    this._equipStartRot = new THREE.Euler(
+      this.weaponGroup.rotation.x,
+      this.weaponGroup.rotation.y,
+      this.weaponGroup.rotation.z
+    );
 
     this.isEquipping = true;
     this.equipProgress = 0;
