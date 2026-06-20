@@ -11,7 +11,8 @@ const DIST = path.resolve('dist');
 const MIME = {
   '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon', '.json': 'application/json', '.glb': 'model/gltf-binary'
+  '.ico': 'image/x-icon', '.json': 'application/json', '.glb': 'model/gltf-binary',
+  '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg'
 };
 
 const server = http.createServer((req, res) => {

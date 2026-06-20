@@ -30,13 +30,26 @@ export class PauseManager {
   }
 
   requestPointerLock() {
+    const el = this.game.renderer.domElement;
+    if (!el) return;
     try {
-      this.game.renderer.domElement.requestPointerLock();
+      const promise = el.requestPointerLock();
+      if (promise && typeof promise.catch === 'function') {
+        promise.catch(() => {});
+      }
     } catch {
       if (!this._lockRetryTimer) {
         this._lockRetryTimer = setTimeout(() => {
           this._lockRetryTimer = null;
-          try { this.game.renderer.domElement.requestPointerLock(); } catch {}
+          const el2 = this.game.renderer.domElement;
+          if (el2) {
+            try {
+              const p2 = el2.requestPointerLock();
+              if (p2 && typeof p2.catch === 'function') {
+                p2.catch(() => {});
+              }
+            } catch {}
+          }
         }, 200);
       }
     }

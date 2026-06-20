@@ -357,16 +357,19 @@ export class AudioManager {
 
   // Try loading real sound files from server; proceed silently if unavailable.
   async loadRealSounds() {
+    if (!this.context) return;
     const sounds = [
       { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0 },
       { name: 'gunshot_shotgun', file: 'sounds/shotgun_shot.wav', vol: 0.55, pitch: 1.0 },
     ];
-    const loaded = [];
     for (const s of sounds) {
-      await this.loadClip(s.name, s.file, s.vol, s.pitch);
-      if (this.clips.get(s.name)) loaded.push(s.name);
+      try {
+        const response = await fetch(s.file);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+        this.clips.set(s.name, new AudioClip(audioBuffer, s.vol, s.pitch));
+      } catch {}
     }
-    if (loaded.length > 0) console.log(`[AudioManager] Loaded ${loaded.length}/${sounds.length} real sound files (${loaded.join(', ')})`);
   }
 
   // Register all procedurally-generated default sounds.
