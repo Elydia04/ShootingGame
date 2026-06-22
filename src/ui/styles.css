@@ -975,30 +975,6 @@ body {
   animation: damageVignette 0.4s ease-out forwards;
 }
 
-/* View Toggle Button */
-.view-toggle {
-  position: absolute;
-  top: 60px;
-  right: 16px;
-  z-index: 70;
-  width: 40px;
-  height: 40px;
-  border-radius: 6px;
-  border: 2px solid rgba(255, 255, 255, 0.25);
-  background: rgba(0, 0, 0, 0.5);
-  color: #ccc;
-  font-size: 0.85rem;
-  font-weight: bold;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.2s, border-color 0.2s;
-}
-
-.view-toggle:hover {
-  background: rgba(74, 158, 255, 0.3);
-  border-color: rgba(74, 158, 255, 0.6);
-}
-
 /* Damage Indicator */
 .damage-indicator {
   position: absolute;

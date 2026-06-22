@@ -1,5 +1,4 @@
 import { States } from '../core/GameStateManager.js';
-import { CameraView } from '../player/CameraSystem.js';
 
 export class InputManager {
   constructor(game) {
@@ -145,17 +144,6 @@ export class InputManager {
           const weapon = this.game.systems.weaponManager.getCurrentWeapon();
           this.game.player.firstPersonWeapon.playReload(weapon ? weapon.reloadTime : 2.0);
           this.game.systems.audioManager.play('reload', 'WEAPON');
-        }
-      }
-
-      if (e.code === 'KeyV' && this.game.core.gameStateManager.is(States.PLAYING)) {
-        const view = this.game.player.cameraSystem.toggleView();
-        this.game.cameraView = view;
-        this.game.ui.hud?.updateViewToggleLabel(view === CameraView.FIRST_PERSON);
-        if (view === CameraView.THIRD_PERSON) {
-          this.game.player.controller.cameraActive = false;
-        } else {
-          this.game.player.controller.cameraActive = true;
         }
       }
 

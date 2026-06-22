@@ -68,7 +68,6 @@ export class PlayerController {
     this.isMoving = false;
     this.isSprinting = false;
     this.isCrouching = false;
-    this.cameraActive = true;
 
     this.flinchTarget = new THREE.Vector3();
     this.flinchCurrent = new THREE.Vector3();
@@ -260,8 +259,6 @@ export class PlayerController {
 
   _updateCamera(dt) {
     this.quaternion.setFromEuler(this.euler);
-
-    if (!this.cameraActive) return;
 
     if (this.flinchTarget.lengthSq() > 0.0001) {
       this.flinchCurrent.lerp(this.flinchTarget, 1 - Math.exp(-12 * dt));

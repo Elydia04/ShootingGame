@@ -35,7 +35,6 @@ export class HUD {
       damageIndicator: document.getElementById('damage-indicator'),
       damageArrow: document.querySelector('#damage-indicator .damage-arrow'),
       slowIndicator: document.getElementById('slow-indicator'),
-      viewToggle: document.getElementById('view-toggle'),
       hitMarker: document.getElementById('hit-marker'),
       crosshairTop: document.querySelector('#crosshair .crosshair-line.top'),
       crosshairBottom: document.querySelector('#crosshair .crosshair-line.bottom'),
@@ -297,18 +296,6 @@ export class HUD {
         this.elements.slowIndicator.classList.remove('active');
       }
     }, 2500);
-  }
-
-  setViewToggleCallback(callback) {
-    if (this.elements.viewToggle) {
-      this.elements.viewToggle.addEventListener('click', callback);
-    }
-  }
-
-  updateViewToggleLabel(isFirstPerson) {
-    if (this.elements.viewToggle) {
-      this.elements.viewToggle.textContent = isFirstPerson ? '1P' : '3P';
-    }
   }
 
   // --- Scoreboard (delegated to ScoreboardUI) ---

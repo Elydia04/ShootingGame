@@ -6,8 +6,6 @@ import { DebugTools } from './core/DebugTools.js';
 import { EventBus } from './core/EventBus.js';
 import { PlayerController } from './player/PlayerController.js';
 import { FirstPersonWeapon } from './player/FirstPersonWeapon.js';
-import { CameraSystem, CameraView } from './player/CameraSystem.js';
-import { ThirdPersonCharacter } from './player/ThirdPersonCharacter.js';
 import { Hitbox } from './player/Hitbox.js';
 import { AssetManager } from './assets/AssetManager.js';
 import { SpawnManager } from './systems/SpawnManager.js';
@@ -59,7 +57,6 @@ class Game {
     this.playerHealth = 100;
     this.playerMaxHealth = 100;
     this.playerAlive = true;
-    this.cameraView = CameraView.FIRST_PERSON;
     this.impactParticles = [];
     this._impactParticlePool = [];
     this._collidableBoxCache = [];
@@ -181,11 +178,6 @@ class Game {
     );
 
     this.player.firstPersonWeapon = new FirstPersonWeapon(this.player.camera);
-    this.player.thirdPersonCharacter = new ThirdPersonCharacter(this.scene);
-    this.player.cameraSystem = new CameraSystem(
-      this.player.camera,
-      this.player.controller
-    );
 
     this.player.hitbox = new Hitbox(this.player.controller, { scale: 1 });
     this.scene.add(this.player.hitbox.group);
@@ -327,9 +319,9 @@ class Game {
         weapon: weapon.type, ammo: weapon.currentAmmo, reserve: weapon.reserveAmmo
       });
 
-      const muzzlePos = this.player.cameraSystem.getMuzzleWorldPosition(
-        this.player.firstPersonWeapon
-      );
+      const muzzlePos = new THREE.Vector3();
+      this.player.camera.getWorldPosition(muzzlePos);
+      muzzlePos.y -= 0.15;
       for (let i = 0; i < (result.shots?.length || 1); i++) {
         const spreadDir = direction.clone();
         if (result.shots) {
@@ -361,9 +353,9 @@ class Game {
       return;
     }
 
-    const muzzlePos = this.player.cameraSystem.getMuzzleWorldPosition(
-      this.player.firstPersonWeapon
-    );
+    const muzzlePos = new THREE.Vector3();
+    this.player.camera.getWorldPosition(muzzlePos);
+    muzzlePos.y -= 0.15;
 
     for (const shot of result.shots) {
       const spreadDir = direction.clone();
@@ -671,7 +663,6 @@ class Game {
       this.core.gameStateManager.transitionTo(States.PLAYING, { mode: 'multi', map: data.mapId, config: data.config });
       if (this._multiLocalTeam) {
         this.ui.hud?.setTeam?.(this._multiLocalTeam);
-        this.player.thirdPersonCharacter?.setTeam?.(this._multiLocalTeam);
       }
     });
 
@@ -1248,17 +1239,6 @@ class Game {
 
     this._setupChatInput();
 
-    this.ui.hud.setViewToggleCallback(() => {
-      const view = this.player.cameraSystem.toggleView();
-      this.cameraView = view;
-      this.ui.hud.updateViewToggleLabel(view === CameraView.FIRST_PERSON);
-      if (view === CameraView.THIRD_PERSON) {
-        this.player.controller.cameraActive = false;
-      } else {
-        this.player.controller.cameraActive = true;
-      }
-    });
-    this.ui.hud.updateViewToggleLabel(true);
     this.ui.hud.hideDeathScreen();
     this.ui.hud.show();
     this.core.debugTools.setState('Playing');
@@ -1462,13 +1442,6 @@ class Game {
         this._playerDied();
       }
     };
-
-    this.player.cameraSystem.update(
-      dt,
-      this.player.firstPersonWeapon,
-      this.player.playerArms,
-      this.player.thirdPersonCharacter
-    );
 
     const weapon = this.systems.weaponManager.getCurrentWeapon();
     this.player.firstPersonWeapon.update(
