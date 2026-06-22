@@ -17,6 +17,7 @@ export class NetworkManager {
     this._updateTimer = 0;
     this._serverStates = [];
     this._interpolationBuffer = [];
+    this._pendingStates = [];
     this._interpolationDelay = 100;
     this._sequenceNumber = 0;
 
@@ -190,8 +191,21 @@ export class NetworkManager {
       this._interpolationBuffer.shift();
     }
 
+    // Queue for game-loop processing instead of calling stateHandler directly
+    this._pendingStates.push(serverState);
+    while (this._pendingStates.length > 3) {
+      this._pendingStates.shift();
+    }
+  }
+
+  // Process queued states in the game loop (called once per frame).
+  processPendingStates() {
+    if (this._pendingStates.length === 0) return;
+    // Only process the latest state to avoid mid-frame interruptions
+    const latest = this._pendingStates[this._pendingStates.length - 1];
+    this._pendingStates = [];
     if (this.stateHandler) {
-      this.stateHandler(serverState);
+      this.stateHandler(latest);
     }
   }
 

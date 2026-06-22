@@ -319,6 +319,7 @@ class Game {
       this.systems.animationManager.playWeapon('shoot');
       if (weapon.melee) {
         this._playMeleeSound();
+        return;
       } else {
         this._playWeaponSound(weapon);
       }
@@ -1801,8 +1802,8 @@ class Game {
 
       this._inputSendAccum += deltaTime;
 
-      if (inputs && this.playerAlive && this._inputSendAccum >= 1 / 30) {
-        this._inputSendAccum -= 1 / 30;
+      if (inputs && this.playerAlive && this._inputSendAccum >= 1 / 20) {
+        this._inputSendAccum -= 1 / 20;
         this._inputSeq++;
         const currentWeapon = this.systems.weaponManager.getCurrentWeapon();
         const inputData = { ...inputs, euler: { x: euler?.x || 0, y: euler?.y || 0 }, seq: this._inputSeq, weapon: currentWeapon?.type };
@@ -1880,6 +1881,7 @@ class Game {
       this._updatePlayer(rawDelta);
       this._updateBots(rawDelta);
       this._updateCoreSystems(rawDelta);
+      this.network.networkManager.processPendingStates();
       this._updateNetwork(rawDelta);
       this._updateRemoteInterpolation(rawDelta);
       if (this.postProcessor) this.postProcessor.update(rawDelta);

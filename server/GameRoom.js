@@ -247,7 +247,7 @@ export class GameRoom {
     if (this._gameStartTimeout) clearTimeout(this._gameStartTimeout);
     this._gameStartTimeout = setTimeout(() => {
       this.lastTime = performance.now();
-      this.gameLoop = setInterval(() => this._tick(), 1000 / 30);
+      this.gameLoop = setInterval(() => this._tick(), 1000 / 20);
     }, this.matchManager.config.countdownTime * 1000);
   }
 
@@ -451,6 +451,10 @@ export class GameRoom {
     if (player._lastFireTime && (now - player._lastFireTime) < fireRate * 1000) return;
     player._lastFireTime = now;
 
+    const isMelee = player.weapon === 'Knife';
+    const maxDist = isMelee ? 2.5 : 300;
+    const baseDamage = isMelee ? 35 : 20;
+
     this._broadcast({ type: 'shot', data: { playerId: player.id } });
 
     const origin = { x: player.position.x, y: player.position.y + 1.0, z: player.position.z };
@@ -461,7 +465,7 @@ export class GameRoom {
 
     for (const [, target] of this.players) {
       if (target.id === player.id || !target.alive || target.team === player.team) continue;
-      const hit = this._raycastPlayer(origin, dir, target, 300);
+      const hit = this._raycastPlayer(origin, dir, target, maxDist);
       if (hit && hit.distance < closestDist) {
         closestDist = hit.distance;
         closestHit = { ...hit, victimId: target.id };
@@ -469,7 +473,7 @@ export class GameRoom {
     }
 
     if (closestHit) {
-      const damage = 20 * closestHit.multiplier;
+      const damage = baseDamage * closestHit.multiplier;
       const victim = this.players.get(closestHit.victimId);
       if (victim) {
         victim.health -= damage;
@@ -478,7 +482,7 @@ export class GameRoom {
 
         if (victim.health <= 0) {
           victim.alive = false;
-          this.matchManager.registerKill(player.id, victim.id, 'Rifle');
+          this.matchManager.registerKill(player.id, victim.id, player.weapon || 'Rifle');
         }
       }
     }
