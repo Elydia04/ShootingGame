@@ -9,6 +9,7 @@ export class InputManager {
     this._lockGraceUntil = 0;
     this._lastUnlockAt = -10000;
     this._lockLossTimer = 0;
+    this._everHadLock = false;
 
     this._setupPointerLock();
     this._setupKeyboard();
@@ -17,8 +18,11 @@ export class InputManager {
 
   // Called each frame for watchdog timer
   update(deltaTime) {
-    // Lock-loss watchdog: auto-pause if pointer lock lost for >0.5s and player is playing
-    if (document.pointerLockElement !== this.game.renderer.domElement &&
+    // Lock-loss watchdog: auto-pause if pointer lock lost for >0.5s and player is playing.
+    // Only activate after the player has acquired pointer lock at least once
+    // (avoids triggering during the initial "Click to Play" prompt in multiplayer).
+    if (this._everHadLock &&
+        document.pointerLockElement !== this.game.renderer.domElement &&
         this.game.core.gameStateManager.is(States.PLAYING) &&
         !this.game.pauseManager.isPaused()) {
       this._lockLossTimer += deltaTime;
@@ -58,6 +62,7 @@ export class InputManager {
     const lockChangeHandler = () => {
       const locked = document.pointerLockElement === this.game.renderer.domElement;
       if (locked) {
+        this._everHadLock = true;
         this._lockGraceUntil = performance.now() + 200;
       } else {
         this._lastUnlockAt = performance.now();
@@ -67,7 +72,7 @@ export class InputManager {
       if (this.game.player.controller) {
         this.game.player.controller.isPointerLocked = locked;
       }
-      if (!locked && this.game.core.gameStateManager.is(States.PLAYING) && !this.game.pauseManager.isPaused() && !this.game.pauseManager.justResumed() && !this.game.ui.settingsMenu?.isVisible()) {
+      if (!locked && this._everHadLock && this.game.core.gameStateManager.is(States.PLAYING) && !this.game.pauseManager.isPaused() && !this.game.pauseManager.justResumed() && !this.game.ui.settingsMenu?.isVisible()) {
         this.game.pauseManager.pause();
       }
     };
