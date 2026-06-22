@@ -26,6 +26,7 @@ export class HUD {
       healthText: document.getElementById('health-text'),
       ammoCurrent: document.getElementById('ammo-current'),
       ammoReserve: document.getElementById('ammo-reserve'),
+      ammoDisplay: document.getElementById('ammo-display'),
       weaponName: document.getElementById('weapon-name'),
       matchTimer: document.getElementById('match-timer'),
       scoreDisplay: document.getElementById('score-display'),
@@ -131,6 +132,12 @@ export class HUD {
   updateWeapon(name) {
     if (this.elements.weaponName) {
       this.elements.weaponName.textContent = name;
+    }
+  }
+
+  showAmmo(visible) {
+    if (this.elements.ammoDisplay) {
+      this.elements.ammoDisplay.style.display = visible ? '' : 'none';
     }
   }
 

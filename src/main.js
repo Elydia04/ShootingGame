@@ -317,7 +317,11 @@ class Game {
     if (this.gameMode === 'multi') {
       this.player.firstPersonWeapon.playShoot();
       this.systems.animationManager.playWeapon('shoot');
-      this._playWeaponSound(weapon);
+      if (weapon.melee) {
+        this._playMeleeSound();
+      } else {
+        this._playWeaponSound(weapon);
+      }
       this.core.eventBus.emit('weapon:fired', {
         weapon: weapon.type, ammo: weapon.currentAmmo, reserve: weapon.reserveAmmo
       });
@@ -1484,7 +1488,12 @@ class Game {
 
     if (weapon) {
       this.core.debugTools.setWeapon(weapon.name);
-      this.ui.hud.updateAmmo(weapon.currentAmmo, weapon.reserveAmmo);
+      if (!weapon.melee) {
+        this.ui.hud.updateAmmo(weapon.currentAmmo, weapon.reserveAmmo);
+        this.ui.hud.showAmmo(true);
+      } else {
+        this.ui.hud.showAmmo(false);
+      }
       this.ui.hud.updateWeapon(weapon.name);
     }
 

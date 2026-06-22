@@ -394,6 +394,7 @@ export class AudioManager {
     const sounds = [
       { name: 'gunshot_rifle', file: 'sounds/rifle_shot.wav', vol: 0.5, pitch: 1.0 },
       { name: 'gunshot_shotgun', file: 'sounds/shotgun_shot.wav', vol: 0.55, pitch: 1.0 },
+      { name: 'knife_swing', file: 'sounds/knife_swing.mp3', vol: 0.5, pitch: 1.0 },
     ];
     for (const s of sounds) {
       try {
