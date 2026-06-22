@@ -6,7 +6,7 @@
 // All created objects are tracked for clean unload.
 import * as THREE from 'three';
 import { TreeGenerator } from './TreeGenerator.js';
-import { BuildingGenerator } from './BuildingGenerator.js';
+import { BuildingGenerator, getAndClearFixtures } from './BuildingGenerator.js';
 import { TextureGenerator } from '../utils/TextureGenerator.js';
 
 export class MapManager {
@@ -119,8 +119,10 @@ export class MapManager {
 
     const geometry = new THREE.PlaneGeometry(size, size);
     const grassTex = TextureGenerator.createGrassTexture();
+    const grassNormal = TextureGenerator.createNormalMap(grassTex.image, 0.8);
     const material = new THREE.MeshStandardMaterial({
       map: grassTex,
+      normalMap: grassNormal,
       color,
       roughness: 0.9,
       metalness: 0
@@ -224,6 +226,15 @@ export class MapManager {
     group.userData.isBuilding = true;
     this.scene.add(group);
     this.objects.push(group);
+
+    // Register light fixtures from this building with the LightPool
+    const worldPos = new THREE.Vector3();
+    group.getWorldPosition(worldPos);
+    const fixtures = getAndClearFixtures();
+    for (const f of fixtures) {
+      f.position.add(worldPos);
+      if (this.lightPool) this.lightPool.registerFixture(f.position, f.color);
+    }
   }
 
   _createGeometry(config) {

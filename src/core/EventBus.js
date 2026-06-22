@@ -29,7 +29,7 @@ export class EventBus {
   emit(event, data = null) {
     const arr = this._listeners.get(event);
     if (!arr) return;
-    for (const cb of arr) {
+    for (const cb of [...arr]) {
       cb(data);
     }
   }

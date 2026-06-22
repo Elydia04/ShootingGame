@@ -198,20 +198,35 @@ export class SettingsMenu {
   }
 
   _setupKeybindListeners() {
+    // Clean up any previous listening state to prevent listener leaks
+    if (this._keybindHandler) {
+      document.removeEventListener('keydown', this._keybindHandler);
+      document.removeEventListener('mousedown', this._keybindHandler);
+      this._keybindHandler = null;
+    }
+    if (this._keybindListening) {
+      this._keybindListening.style.borderColor = '#333';
+      this._keybindListening = null;
+    }
+
     const rows = this.panel.querySelectorAll('.keybind-row');
-    let listening = null;
 
     rows.forEach(row => {
       row.addEventListener('click', () => {
-        if (listening) {
-          listening.style.borderColor = '#333';
+        if (this._keybindListening) {
+          this._keybindListening.style.borderColor = '#333';
         }
 
-        listening = row;
+        this._keybindListening = row;
         row.style.borderColor = '#4a9eff';
         row.querySelector('.keybind-key').textContent = '...';
 
-        const handler = (e) => {
+        if (this._keybindHandler) {
+          document.removeEventListener('keydown', this._keybindHandler);
+          document.removeEventListener('mousedown', this._keybindHandler);
+        }
+
+        this._keybindHandler = (e) => {
           e.preventDefault();
           let code = e.code;
           if (e.button !== undefined) {
@@ -226,13 +241,14 @@ export class SettingsMenu {
           this.settings.saveManager.save('settings', this.settings.settings);
           this.settings._persist();
 
-          document.removeEventListener('keydown', handler);
-          document.removeEventListener('mousedown', handler);
-          listening = null;
+          document.removeEventListener('keydown', this._keybindHandler);
+          document.removeEventListener('mousedown', this._keybindHandler);
+          this._keybindHandler = null;
+          this._keybindListening = null;
         };
 
-        document.addEventListener('keydown', handler);
-        document.addEventListener('mousedown', handler);
+        document.addEventListener('keydown', this._keybindHandler);
+        document.addEventListener('mousedown', this._keybindHandler);
       });
     });
   }

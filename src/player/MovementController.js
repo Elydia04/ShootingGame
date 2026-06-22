@@ -22,6 +22,8 @@ const AIR_ACCEL = 4.0;
 const AIR_CONTROL = 0.3;
 const JUMP_FORCE = 8.0;
 const STEP_HEIGHT = 0.35;
+const MAX_COLLISION_ITERATIONS = 4;
+const GROUND_LEVEL_EPSILON = 0.15;
 
 export class MovementController {
   constructor() {
@@ -97,42 +99,67 @@ export class MovementController {
 
   resolveCollisions(pos) {
     const r = this.radius;
-    const bottom = pos.y - this.height * 0.5;
+    const halfH = this.height * 0.5;
+    let bottom = pos.y - halfH;
 
-    for (const obj of this.collidables) {
-      if (!obj.geometry) continue;
-      const geo = obj.geometry;
-      if (!geo.boundingBox) geo.computeBoundingBox();
-      obj.updateWorldMatrix(true, false);
-      const box = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
+    for (let iter = 0; iter < MAX_COLLISION_ITERATIONS; iter++) {
+      let anyCollision = false;
 
-      if (bottom > box.max.y || pos.y + this.height * 0.5 < box.min.y) continue;
-      if (bottom >= box.max.y) continue;
+      for (const obj of this.collidables) {
+        if (!obj.geometry) continue;
+        const geo = obj.geometry;
+        if (!geo.boundingBox) geo.computeBoundingBox();
+        obj.updateWorldMatrix(true, false);
+        const box = geo.boundingBox.clone().applyMatrix4(obj.matrixWorld);
 
-      const cx = pos.x;
-      const cz = pos.z;
-      const cx2 = Math.max(box.min.x, Math.min(cx, box.max.x));
-      const cz2 = Math.max(box.min.z, Math.min(cz, box.max.z));
-      const dx = cx - cx2;
-      const dz = cz - cz2;
-      const d2 = dx * dx + dz * dz;
+        if (bottom > box.max.y || pos.y + halfH < box.min.y) continue;
+        if (bottom >= box.max.y) continue;
 
-      if (d2 < r * r && d2 > 0.0001) {
-        const stepUp = box.max.y - bottom;
-        if (stepUp > 0 && stepUp <= STEP_HEIGHT) {
-          pos.y += stepUp;
-          // Only kill downward velocity — preserve jump/sprint-up momentum
-          if (this.velocity.y < 0) this.velocity.y = 0;
-          continue;
+        // Skip objects at ground level — they are decorative (roads, etc.)
+        // and would cause step-up bounce.
+        if (box.max.y <= this.groundY + GROUND_LEVEL_EPSILON) continue;
+
+        const cx = pos.x;
+        const cz = pos.z;
+        const cx2 = Math.max(box.min.x, Math.min(cx, box.max.x));
+        const cz2 = Math.max(box.min.z, Math.min(cz, box.max.z));
+        const dx = cx - cx2;
+        const dz = cz - cz2;
+        const d2 = dx * dx + dz * dz;
+
+        if (d2 < r * r && d2 > 0.0001) {
+          const stepUp = box.max.y - bottom;
+          if (stepUp > 0 && stepUp <= STEP_HEIGHT) {
+            pos.y += stepUp;
+            bottom += stepUp;
+            if (this.velocity.y < 0) this.velocity.y = 0;
+            anyCollision = true;
+            continue;
+          }
+
+          const dist = Math.sqrt(d2);
+          const overlap = r - dist;
+          const nx = dx / dist;
+          const nz = dz / dist;
+          pos.x += nx * overlap;
+          pos.z += nz * overlap;
+
+          // Only dampen velocity along the collision normal,
+          // preserve tangential velocity so player slides along walls.
+          const vDotN = this.velocity.x * nx + this.velocity.z * nz;
+          if (vDotN > 0) {
+            this.velocity.x -= vDotN * nx * 0.5;
+            this.velocity.z -= vDotN * nz * 0.5;
+          }
+
+          anyCollision = true;
         }
-
-        const dist = Math.sqrt(d2);
-        const overlap = r - dist;
-        pos.x += (dx / dist) * overlap;
-        pos.z += (dz / dist) * overlap;
-        this.velocity.x *= 0.1;
-        this.velocity.z *= 0.1;
       }
+
+      bottom = pos.y - halfH;
+
+      // If no collisions this pass, we're settled
+      if (!anyCollision) break;
     }
   }
 

@@ -95,21 +95,23 @@ export class GameStateManager {
 
     console.log(`[GameStateManager] ${this.previous} -> ${this.current}`);
 
-    const listeners = this.listeners.get(newState);
-    if (listeners) {
-      for (const cb of listeners) {
-        cb({ from: this.previous, to: newState, data });
+    try {
+      const listeners = this.listeners.get(newState);
+      if (listeners) {
+        for (const cb of listeners) {
+          cb({ from: this.previous, to: newState, data });
+        }
       }
-    }
 
-    const wildcard = this.listeners.get('*');
-    if (wildcard) {
-      for (const cb of wildcard) {
-        cb({ from: this.previous, to: newState, data });
+      const wildcard = this.listeners.get('*');
+      if (wildcard) {
+        for (const cb of wildcard) {
+          cb({ from: this.previous, to: newState, data });
+        }
       }
+    } finally {
+      this.transitioning = false;
     }
-
-    this.transitioning = false;
     return true;
   }
 

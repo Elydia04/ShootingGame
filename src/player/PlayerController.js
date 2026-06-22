@@ -81,16 +81,31 @@ export class PlayerController {
     this.isSlowed = false;
 
     this.onFallDamage = null;
+
+    // Stuck detection: if player is providing input but not moving,
+    // teleport to a spawn point.
+    this._stuckTimer = 0;
+    this._stuckCheckPos = new THREE.Vector3();
+    this._stuckThreshold = 2.0;   // seconds before teleport
+    this._stuckMoveThreshold = 0.3; // must move less than this to be stuck
+    this.onStuck = null;
   }
 
   handleMouseMove(event) {
     if (!this.isPointerLocked) return;
 
+    // Filter delta spikes (Chromium garbage events on lock engagement)
+    const dx = Math.abs(event.movementX) > 600 ? 0 : event.movementX;
+    const dy = Math.abs(event.movementY) > 600 ? 0 : event.movementY;
+    const cap = 280;
+    const clampedX = Math.max(-cap, Math.min(cap, dx));
+    const clampedY = Math.max(-cap, Math.min(cap, dy));
+
     const sensitivity = this.settings.get('controls', 'sensitivity') / 10;
     const invertY = this.settings.get('controls', 'invertY') ? -1 : 1;
 
-    this.mouseDelta.x += event.movementX * sensitivity * 0.002;
-    this.mouseDelta.y += event.movementY * sensitivity * 0.002 * invertY;
+    this.mouseDelta.x += clampedX * sensitivity * 0.002;
+    this.mouseDelta.y += clampedY * sensitivity * 0.002 * invertY;
   }
 
   handleKeyDown(code) {
@@ -184,6 +199,8 @@ export class PlayerController {
     if (collisionCallback) {
       collisionCallback(this);
     }
+
+    this._checkStuck(dt);
 
     this._updateBob(dt);
     this._updateCamera(dt);
@@ -283,6 +300,30 @@ export class PlayerController {
     if (Math.abs(this.landBobbing) < 0.001) this.landBobbing = 0;
   }
 
+  _checkStuck(dt) {
+    const hasInput = this.inputs.forward || this.inputs.backward ||
+                     this.inputs.left || this.inputs.right ||
+                     this.inputs.jump;
+
+    if (!hasInput) {
+      this._stuckTimer = 0;
+      this._stuckCheckPos.copy(this.position);
+      return;
+    }
+
+    const moved = this.position.distanceTo(this._stuckCheckPos);
+    if (moved < this._stuckMoveThreshold) {
+      this._stuckTimer += dt;
+      if (this._stuckTimer >= this._stuckThreshold) {
+        this._stuckTimer = 0;
+        if (this.onStuck) this.onStuck(this);
+      }
+    } else {
+      this._stuckTimer = 0;
+      this._stuckCheckPos.copy(this.position);
+    }
+  }
+
   applyFlinch(region) {
     const strength = this.flinchStrength[region] || this.flinchStrength.body;
     const angle = (Math.random() - 0.5) * Math.PI * 0.5;
@@ -301,6 +342,8 @@ export class PlayerController {
   teleport(x, y, z) {
     this.position.set(x, y, z);
     this.velocity.set(0, 0, 0);
+    this._stuckTimer = 0;
+    this._stuckCheckPos.copy(this.position);
   }
 
   getState() {

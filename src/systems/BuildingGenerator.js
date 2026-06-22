@@ -1,12 +1,24 @@
 import * as THREE from 'three';
 import { TextureGenerator } from '../utils/TextureGenerator.js';
 
+const _lightFixtures = [];
+
+export function getAndClearFixtures() {
+  const fixtures = _lightFixtures.slice();
+  _lightFixtures.length = 0;
+  return fixtures;
+}
+
 function texMat(texture, color, opts = {}) {
+  const normalMap = opts.normalMap || null;
+  const roughnessMap = opts.roughnessMap || null;
   return new THREE.MeshStandardMaterial({
     map: texture,
     color: color || 0xffffff,
     roughness: opts.roughness ?? 0.8,
     metalness: opts.metalness ?? 0,
+    normalMap,
+    roughnessMap,
     ...opts
   });
 }
@@ -74,6 +86,7 @@ function addCeilingLight(group, x, y, z) {
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.15, 0.04, 8), baseMat);
   base.position.set(x, y + 0.04, z);
   group.add(base);
+  _lightFixtures.push({ position: new THREE.Vector3(x, y, z), color: 0xffeebb });
 }
 
 function addTable(group, x, y, z) {
@@ -129,11 +142,14 @@ export class BuildingGenerator {
     const plasterTex = TextureGenerator.createPlasterTexture();
     const brickTex = TextureGenerator.createBrickTexture();
     const roofTex = TextureGenerator.createRoofTileTexture();
+    const plasterNormal = TextureGenerator.createNormalMap(plasterTex.image);
+    const brickNormal = TextureGenerator.createNormalMap(brickTex.image);
+    const roofNormal = TextureGenerator.createNormalMap(roofTex.image, 1.8);
 
-    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.85 });
-    const roofMat = texMat(roofTex, roofColor, { roughness: 0.7 });
+    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.85, normalMap: plasterNormal });
+    const roofMat = texMat(roofTex, roofColor, { roughness: 0.7, normalMap: roofNormal });
     const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.6 });
-    const brickMat = texMat(brickTex, 0xcccccc, { roughness: 0.9 });
+    const brickMat = texMat(brickTex, 0xcccccc, { roughness: 0.9, normalMap: brickNormal });
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x1a2a3a, roughness: 0.1, metalness: 0.3 });
     const doorMat = new THREE.MeshStandardMaterial({ color: 0x5a3a2a, roughness: 0.9 });
 
@@ -205,11 +221,14 @@ export class BuildingGenerator {
     const brickTex = TextureGenerator.createBrickTexture();
     const roofTex = TextureGenerator.createRoofTileTexture();
     const plasterTex = TextureGenerator.createPlasterTexture();
+    const plasterNormal = TextureGenerator.createNormalMap(plasterTex.image);
+    const brickNormal = TextureGenerator.createNormalMap(brickTex.image);
+    const roofNormal = TextureGenerator.createNormalMap(roofTex.image, 1.8);
 
-    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.85 });
-    const roofMat = texMat(roofTex, roofColor, { roughness: 0.6 });
+    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.85, normalMap: plasterNormal });
+    const roofMat = texMat(roofTex, roofColor, { roughness: 0.6, normalMap: roofNormal });
     const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5 });
-    const brickMat = texMat(brickTex, 0xcccccc, { roughness: 0.9 });
+    const brickMat = texMat(brickTex, 0xcccccc, { roughness: 0.9, normalMap: brickNormal });
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x1a2a3a, roughness: 0.1, metalness: 0.3 });
     const doorMat = new THREE.MeshStandardMaterial({ color: 0x5a3a2a, roughness: 0.9 });
     const railMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.3, roughness: 0.6 });
@@ -373,10 +392,13 @@ export class BuildingGenerator {
     const brickTex = TextureGenerator.createBrickTexture();
     const roofTex = TextureGenerator.createRoofTileTexture();
     const plasterTex = TextureGenerator.createPlasterTexture();
+    const plasterNormal = TextureGenerator.createNormalMap(plasterTex.image);
+    const brickNormal = TextureGenerator.createNormalMap(brickTex.image);
+    const roofNormal = TextureGenerator.createNormalMap(roofTex.image, 1.8);
 
-    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.85 });
-    const roofMat = texMat(roofTex, roofColor, { roughness: 0.6 });
-    const brickMat = texMat(brickTex, 0xcccccc, { roughness: 0.9 });
+    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.85, normalMap: plasterNormal });
+    const roofMat = texMat(roofTex, roofColor, { roughness: 0.6, normalMap: roofNormal });
+    const brickMat = texMat(brickTex, 0xcccccc, { roughness: 0.9, normalMap: brickNormal });
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x1a2a3a, roughness: 0.1, metalness: 0.3 });
     const doorMat = new THREE.MeshStandardMaterial({ color: 0x5a3a2a, roughness: 0.9 });
     const trimMat = new THREE.MeshStandardMaterial({ color: 0xeeddcc, roughness: 0.6 });
@@ -460,9 +482,11 @@ export class BuildingGenerator {
 
     const plasterTex = TextureGenerator.createPlasterTexture();
     const roofTex = TextureGenerator.createRoofTileTexture();
+    const plasterNormal = TextureGenerator.createNormalMap(plasterTex.image);
+    const roofNormal = TextureGenerator.createNormalMap(roofTex.image, 1.8);
 
-    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.95 });
-    const roofMat = texMat(roofTex, roofColor, { roughness: 0.8 });
+    const wallMat = texMat(plasterTex, wallColor, { roughness: 0.95, normalMap: plasterNormal });
+    const roofMat = texMat(roofTex, roofColor, { roughness: 0.8, normalMap: roofNormal });
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 });
     const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.95 });
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x0a1a2a, roughness: 0.3, metalness: 0.1 });

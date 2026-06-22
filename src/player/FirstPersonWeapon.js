@@ -6,6 +6,7 @@
 //   - weapon switching with equip animation
 // Supports: M4A1 (default), Pistol, SMG, Shotgun, Sniper, Knife.
 import * as THREE from 'three';
+import { FiniteStateMachine } from '../systems/FiniteStateMachine.js';
 
 export class FirstPersonWeapon {
   constructor(camera) {
@@ -51,6 +52,27 @@ export class FirstPersonWeapon {
     this.flashTimer = 0;
 
     this.reloadDuration = 2.0;
+
+    this._fsm = new FiniteStateMachine();
+    this._fsm.addState('idle', { enter: () => {}, exit: () => {}, update: () => {} });
+    this._fsm.addState('shoot', {
+      enter: () => { this._shootFlash = 0.08; },
+      exit: () => { this._shootFlash = 0; },
+      update: (dt) => {
+        this._shootFlash -= dt;
+        if (this._shootFlash <= 0) this._fsm.setState('idle');
+      }
+    });
+    this._fsm.addState('reload', {
+      enter: () => { this.isReloading = true; this.reloadProgress = 0; },
+      exit: () => { this.isReloading = false; this.reloadProgress = 0; },
+      update: (dt) => {
+        this.reloadProgress += dt;
+        if (this.reloadProgress >= this.reloadDuration) this._fsm.setState('idle');
+      }
+    });
+    this._fsm.setState('idle');
+    this._shootFlash = 0;
 
     this._resetPose();
   }
@@ -175,6 +197,7 @@ export class FirstPersonWeapon {
       this.knifeStab = 0.15;
       return;
     }
+    this._fsm.setState('shoot');
     this.shootKick = 0.04;
     this.recoil = Math.min(this.recoil + 0.025, this.maxRecoil);
     this.recoilSide += (Math.random() - 0.5) * 0.02;
@@ -219,6 +242,8 @@ export class FirstPersonWeapon {
         this.reloadProgress = 0;
       }
     }
+
+    this._fsm.update(dt);
 
     if (this.shootKick > 0) {
       this.shootKick *= (1 - 12 * dt);
@@ -280,6 +305,8 @@ export class FirstPersonWeapon {
     this.weaponGroup.rotation.y += (targetRot.y - this.weaponGroup.rotation.y) * 10 * dt;
     this.weaponGroup.rotation.z += (targetRot.z - this.weaponGroup.rotation.z) * 10 * dt;
 
+    // Use flashTimer from FSM shoot state if available, else existing flashTimer
+    const flashActive = this._fsm.currentName === 'shoot' ? this._shootFlash : this.flashTimer;
     if (this.flashTimer > 0) {
       this.flashTimer -= dt;
       if (this.flashTimer <= 0) {
@@ -315,6 +342,10 @@ export class FirstPersonWeapon {
       const child = this.weaponGroup.children[0];
       if (child.isMesh) {
         child.geometry.dispose();
+        child.material.dispose();
+      }
+      if (child.isSprite && child.material) {
+        if (child.material.map) child.material.map.dispose();
         child.material.dispose();
       }
       this.weaponGroup.remove(child);
@@ -538,6 +569,10 @@ export class FirstPersonWeapon {
     this.weaponGroup.traverse(child => {
       if (child.isMesh) {
         child.geometry.dispose();
+        child.material.dispose();
+      }
+      if (child.isSprite && child.material) {
+        if (child.material.map) child.material.map.dispose();
         child.material.dispose();
       }
     });

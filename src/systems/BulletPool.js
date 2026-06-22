@@ -220,6 +220,12 @@ export class BulletPool {
   get activeCount() { return this.pool.activeCount; }
 
   dispose() {
-    this.pool.disposeAll((bullet) => bullet.dispose());
+    this.pool.disposeAll((bullet) => {
+      if (bullet.tracer) {
+        this.scene.remove(bullet.tracer);
+        bullet.tracer.geometry.dispose();
+        bullet.tracer.material.dispose();
+      }
+    });
   }
 }

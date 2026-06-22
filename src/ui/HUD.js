@@ -10,6 +10,7 @@ export class HUD {
     this.slowIndicatorTimeout = null;
 
     this.damageTrack = null;
+    this._unsubs = [];
 
     this.crosshairBase = 4;
     this.crosshairSpread = 0;
@@ -51,7 +52,7 @@ export class HUD {
   _setupListeners() {
     if (!this.eventBus) return;
 
-    this.eventBus.on('player:damage', (data) => {
+    this._unsubs.push(this.eventBus.on('player:damage', (data) => {
       this.showDamageVignette();
       if (data.attackerPos) {
         this.showDamageDirection(data.attackerPos);
@@ -59,19 +60,19 @@ export class HUD {
       if (data.region === 'leg') {
         this.showSlowIndicator();
       }
-    });
+    }));
 
-    this.eventBus.on('player:kill', (data) => {
+    this._unsubs.push(this.eventBus.on('player:kill', (data) => {
       this.addKillFeedEntry(data);
-    });
+    }));
 
-    this.eventBus.on('match:score', (data) => {
+    this._unsubs.push(this.eventBus.on('match:score', (data) => {
       this.updateScore(data);
-    });
+    }));
 
-    this.eventBus.on('match:timer', (data) => {
+    this._unsubs.push(this.eventBus.on('match:timer', (data) => {
       this.updateTimer(data.time);
-    });
+    }));
   }
 
   show() {
@@ -382,6 +383,10 @@ export class HUD {
 
   dispose() {
     this.hide();
+    for (const unsub of this._unsubs) {
+      unsub();
+    }
+    this._unsubs.length = 0;
     if (this.vignetteTimer) {
       clearTimeout(this.vignetteTimer);
     }

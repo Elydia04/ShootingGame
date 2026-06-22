@@ -18,6 +18,9 @@ import { BulletPool } from './systems/BulletPool.js';
 import { MatchManager, MatchState } from './systems/MatchManager.js';
 import { WeaponManager, WeaponType } from './systems/WeaponManager.js';
 import { BotController } from './systems/BotController.js';
+import { PostProcessor } from './systems/PostProcessor.js';
+import { LightPool } from './systems/LightPool.js';
+import { Pathfinder } from './systems/Pathfinder.js';
 import { NetworkManager } from './network/NetworkManager.js';
 import { InterpolationManager } from './network/InterpolationManager.js';
 import { RemotePlayer } from './player/RemotePlayer.js';
@@ -51,6 +54,7 @@ class Game {
     this.remotePlayers = [];
     this._cachedCollidables = [];
     this._cachedCollidableBoxes = [];
+    this._collidablesDirty = true;
     this.gameMode = 'solo';
     this.playerHealth = 100;
     this.playerMaxHealth = 100;
@@ -130,6 +134,9 @@ class Game {
     await this.systems.assetManager.loadAll();
 
     this.systems.mapManager = new MapManager(this.scene);
+    this.systems.lightPool = new LightPool(this.scene);
+    this.systems.mapManager.lightPool = this.systems.lightPool;
+    this._pathfinder = new Pathfinder(2);
     this.systems.mapManager.registerMap('forest_map', forestMap);
     this.systems.mapManager.registerMap('city_map', cityMap);
     this.systems.mapManager.registerMap('training_map', trainingMap);
@@ -162,6 +169,11 @@ class Game {
     );
     this.player.camera.position.set(0, 0.75, 0);
     this.scene.add(this.player.camera);
+
+    this.postProcessor = new PostProcessor(this.renderer, this.scene, this.player.camera);
+    this.core.eventBus.on('player:damage', () => {
+      if (this.postProcessor) this.postProcessor.setDamage(0.35);
+    });
 
     this.player.controller = new PlayerController(
       this.player.camera,
@@ -260,6 +272,9 @@ class Game {
   }
 
   _refreshCollidables() {
+    if (!this._collidablesDirty) return;
+    this._collidablesDirty = false;
+
     const objects = this.systems.mapManager.objects;
     this._cachedCollidables.length = 0;
     this._cachedCollidableBoxes.length = 0;
@@ -769,6 +784,7 @@ class Game {
     this.playerHealth = this.playerMaxHealth;
 
     this.systems.mapManager.loadMap(mapId);
+    this._collidablesDirty = true;
     this._refreshCollidables();
     this._render();
     this.systems.spawnManager.loadFromMap(this.systems.mapManager.getMapData());
@@ -777,6 +793,14 @@ class Game {
     if (spawn) {
       this.player.controller.teleport(spawn.position.x, spawn.position.y, spawn.position.z);
     }
+
+    this.player.controller.onStuck = (controller) => {
+      const exclude = this.bots.filter(b => b.alive).map(b => b.position);
+      const s = this.systems.spawnManager.getSpawn('player', null, exclude);
+      if (s) {
+        controller.teleport(s.position.x, s.position.y, s.position.z);
+      }
+    };
 
     this.systems.matchManager.configure({ type: 'deathmatch', scoreLimit: config.scoreLimit || 10, timeLimit: (config.timeLimit || 10) * 60, teamMode: false });
     this.systems.matchManager.registerPlayer('local', 'Player');
@@ -1143,6 +1167,7 @@ class Game {
     this.playerAlive = true;
 
     this.systems.mapManager.loadMap(config.map);
+    this._collidablesDirty = true;
     this._refreshCollidables();
     this._render();
     this.systems.spawnManager.loadFromMap(this.systems.mapManager.getMapData());
@@ -1172,6 +1197,14 @@ class Game {
     if (playerSpawn) {
       this.player.controller.teleport(playerSpawn.position.x, playerSpawn.position.y, playerSpawn.position.z);
     }
+
+    this.player.controller.onStuck = (controller) => {
+      const exclude = this.bots.filter(b => b.alive).map(b => b.position);
+      const spawn = this.systems.spawnManager.getSpawn('player', null, exclude);
+      if (spawn) {
+        controller.teleport(spawn.position.x, spawn.position.y, spawn.position.z);
+      }
+    };
 
     this.systems.matchManager.configure({
       type: 'deathmatch',
@@ -1225,6 +1258,7 @@ class Game {
   _spawnBots(difficulty, count) {
     for (let i = 0; i < count; i++) {
       const bot = new BotController(this.scene, difficulty);
+      bot.pathfinder = this._pathfinder;
 
       const exclude = this.bots.map(b => b.position).concat([this.player.controller.position]);
       const spawn = this.systems.spawnManager.getSpawn('player', null, exclude);
@@ -1339,6 +1373,7 @@ class Game {
       this.player.camera.aspect = w / h;
       this.player.camera.updateProjectionMatrix();
       this.renderer.setSize(w, h);
+      if (this.postProcessor) this.postProcessor.setSize(w, h);
     });
   }
 
@@ -1354,9 +1389,14 @@ class Game {
         }
         if (weapon.currentAmmo <= 0 && this._autoFireSound) {
           this._onTriggerRelease();
-        }
       }
     }
+
+    // Rebuild pathfinder nav grid from collidable boxes
+    if (this._pathfinder) {
+      this._pathfinder.buildFromBoxes(this._cachedCollidableBoxes);
+    }
+  }
   }
 
   _updateCoreSystems(deltaTime) {
@@ -1529,6 +1569,7 @@ class Game {
 
     const hitResult = this.player.hitbox.testRay(raycaster);
     if (hitResult && this.playerAlive) {
+      if (this.core.debugTools.cheats.god) return;
       const finalDamage = damage * hitResult.multiplier;
       this.playerHealth -= finalDamage;
 
@@ -1771,8 +1812,24 @@ class Game {
     this.core.debugTools.setBullets(this.systems.bulletPool.activeCount);
   }
 
+  _applyCheats() {
+    const cheats = this.core.debugTools.cheats;
+    if (!cheats.unlocked) return;
+
+    // Fullbright — max out ambient light
+    if (cheats.fullbright) {
+      this.scene.children.forEach(child => {
+        if (child.isAmbientLight) child.intensity = 1.5;
+      });
+    }
+  }
+
   _render() {
-    this.renderer.render(this.scene, this.player.camera);
+    if (this.postProcessor) {
+      this.postProcessor.render();
+    } else {
+      this.renderer.render(this.scene, this.player.camera);
+    }
   }
 
   _gameLoop = (timestamp) => {
@@ -1808,12 +1865,18 @@ class Game {
 
       this._refreshCollidables();
       this.inputManager.syncInputs();
+      this.inputManager.update(rawDelta);
       this._handleInput();
+      this._applyCheats();
       this._updatePlayer(rawDelta);
       this._updateBots(rawDelta);
       this._updateCoreSystems(rawDelta);
       this._updateNetwork(rawDelta);
       this._updateRemoteInterpolation(rawDelta);
+      if (this.postProcessor) this.postProcessor.update(rawDelta);
+      if (this.systems.lightPool && this.player.controller) {
+        this.systems.lightPool.update(this.player.controller.position);
+      }
       this._render();
 
       this.core.debugTools.setBullets(this.systems.bulletPool.activeCount);

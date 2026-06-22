@@ -5,23 +5,62 @@ export class InputManager {
   constructor(game) {
     this.game = game;
     this._keys = new Set();
+    this._handlers = [];
+    this._lockGraceUntil = 0;
+    this._lastUnlockAt = -10000;
+    this._lockLossTimer = 0;
 
     this._setupPointerLock();
     this._setupKeyboard();
     this._setupMouse();
   }
 
+  // Called each frame for watchdog timer
+  update(deltaTime) {
+    // Lock-loss watchdog: auto-pause if pointer lock lost for >0.5s and player is playing
+    if (document.pointerLockElement !== this.game.renderer.domElement &&
+        this.game.core.gameStateManager.is(States.PLAYING) &&
+        !this.game.pauseManager.isPaused()) {
+      this._lockLossTimer += deltaTime;
+      if (this._lockLossTimer > 0.5) {
+        this._lockLossTimer = 0;
+        this.game.pauseManager.pause();
+      }
+    } else {
+      this._lockLossTimer = 0;
+    }
+  }
+
+  _addEvent(target, type, handler, options) {
+    target.addEventListener(type, handler, options);
+    this._handlers.push({ target, type, handler, options });
+  }
+
   _setupPointerLock() {
-    document.addEventListener('click', (e) => {
+    const clickHandler = (e) => {
       this.game.systems.audioManager?.resume();
       if (this.game.core.gameStateManager.is(States.PLAYING) && e.target === this.game.renderer.domElement) {
-        this.game.pauseManager.requestPointerLock();
+        // Relock cooldown (Chromium needs ~1.35s between unlock and relock)
+        const wait = 1350 - (performance.now() - this._lastUnlockAt);
+        if (wait > 0) {
+          setTimeout(() => {
+            if (document.pointerLockElement !== this.game.renderer.domElement) {
+              this.game.pauseManager.requestPointerLock();
+            }
+          }, wait);
+        } else {
+          this.game.pauseManager.requestPointerLock();
+        }
       }
-    });
+    };
+    this._addEvent(document, 'click', clickHandler);
 
-    document.addEventListener('pointerlockchange', () => {
+    const lockChangeHandler = () => {
       const locked = document.pointerLockElement === this.game.renderer.domElement;
-      if (!locked) {
+      if (locked) {
+        this._lockGraceUntil = performance.now() + 200;
+      } else {
+        this._lastUnlockAt = performance.now();
         this._keys.delete('Mouse0');
         this._keys.delete('Mouse2');
       }
@@ -31,18 +70,19 @@ export class InputManager {
       if (!locked && this.game.core.gameStateManager.is(States.PLAYING) && !this.game.pauseManager.isPaused() && !this.game.pauseManager.justResumed() && !this.game.ui.settingsMenu?.isVisible()) {
         this.game.pauseManager.pause();
       }
-    });
+    };
+    this._addEvent(document, 'pointerlockchange', lockChangeHandler);
   }
 
   _setupKeyboard() {
-    // Capture-phase handler stops Chrome Ctrl+ shortcuts before they reach browser chrome
-    window.addEventListener('keydown', (e) => {
+    const captureKeydown = (e) => {
       if (e.ctrlKey || e.code === 'ControlLeft' || e.code === 'ControlRight') {
         e.preventDefault();
       }
-    }, { capture: true });
+    };
+    this._addEvent(window, 'keydown', captureKeydown, { capture: true });
 
-    document.addEventListener('keydown', (e) => {
+    const keydownHandler = (e) => {
       if (e.ctrlKey || e.code === 'ControlLeft' || e.code === 'ControlRight') {
         e.preventDefault();
       }
@@ -60,6 +100,8 @@ export class InputManager {
         this.game.player.hitbox.setDebugMode(this.game.core.debugTools.enabled);
         this.game.bots.forEach(b => b.hitbox.setDebugMode(this.game.core.debugTools.enabled));
       }
+
+      this.game.core.debugTools.handleKey(e);
 
       if (e.code === 'Tab') {
         e.preventDefault();
@@ -122,28 +164,34 @@ export class InputManager {
       if (idx !== -1 && this.game.systems.weaponManager) {
         this.game.systems.weaponManager.switchTo(idx);
       }
-    });
+    };
+    this._addEvent(document, 'keydown', keydownHandler);
 
-    document.addEventListener('keyup', (e) => {
+    const keyupHandler = (e) => {
       this._keys.delete(e.code);
       if (e.code === 'Tab' && this.game.core.gameStateManager.is(States.PLAYING)) {
         this.game._hideScoreboard();
       }
-    });
+    };
+    this._addEvent(document, 'keyup', keyupHandler);
 
-    document.addEventListener('blur', () => {
+    const blurHandler = () => {
       this._keys.clear();
-    });
+    };
+    this._addEvent(document, 'blur', blurHandler);
   }
 
   _setupMouse() {
-    document.addEventListener('mousemove', (e) => {
+    const mousemoveHandler = (e) => {
       if (this.game.player.controller) {
+        // Grace window — ignore garbage deltas right after lock
+        if (performance.now() < this._lockGraceUntil) return;
         this.game.player.controller.handleMouseMove(e);
       }
-    });
+    };
+    this._addEvent(document, 'mousemove', mousemoveHandler);
 
-    document.addEventListener('mousedown', (e) => {
+    const mousedownHandler = (e) => {
       this._keys.add(`Mouse${e.button}`);
       this.game.systems.audioManager?.resume();
 
@@ -153,23 +201,34 @@ export class InputManager {
           this.game._fireWeapon();
         }
       }
-    });
+    };
+    this._addEvent(document, 'mousedown', mousedownHandler);
 
-    document.addEventListener('mouseup', (e) => {
+    const mouseupHandler = (e) => {
       this._keys.delete(`Mouse${e.button}`);
       if (e.button === 0) {
         this.game._onTriggerRelease?.();
       }
-    });
+    };
+    this._addEvent(document, 'mouseup', mouseupHandler);
 
-    document.addEventListener('wheel', (e) => {
+    const wheelHandler = (e) => {
       if (!this.game.core.gameStateManager.is(States.PLAYING) || !this.game.systems.weaponManager) return;
       if (e.deltaY > 0) {
         this.game.systems.weaponManager.switchToNext();
       } else {
         this.game.systems.weaponManager.switchToPrev();
       }
-    });
+    };
+    this._addEvent(document, 'wheel', wheelHandler);
+  }
+
+  dispose() {
+    for (const { target, type, handler, options } of this._handlers) {
+      target.removeEventListener(type, handler, options);
+    }
+    this._handlers.length = 0;
+    this._keys.clear();
   }
 
   syncInputs() {

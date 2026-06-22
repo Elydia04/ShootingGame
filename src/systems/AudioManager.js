@@ -44,7 +44,10 @@ export class AudioManager {
     try {
       this.context = new (window.AudioContext || window.webkitAudioContext)();
       this.masterGain = this.context.createGain();
-      this.masterGain.connect(this.context.destination);
+      const compressor = this.context.createDynamicsCompressor();
+      compressor.threshold.value = -18;
+      this.masterGain.connect(compressor);
+      compressor.connect(this.context.destination);
       this.masterGain.gain.value = this.settings.get('audio', 'masterVolume');
 
       for (const [category, settingKey] of Object.entries(AudioCategory)) {
@@ -53,6 +56,14 @@ export class AudioManager {
         gain.gain.value = this.settings.get('audio', settingKey);
         this.categoryGains.set(category, gain);
       }
+
+      // Convolution reverb
+      this._reverbWet = this.context.createGain();
+      this._reverbWet.gain.value = 0.15;
+      const convolver = this.context.createConvolver();
+      convolver.buffer = this._generateImpulse(1.6, 3.2);
+      this._reverbWet.connect(convolver);
+      convolver.connect(this.masterGain);
 
       this.listener = this.context.listener;
       this.generateDefaultSounds();
@@ -128,6 +139,14 @@ export class AudioManager {
         gainNode.connect(categoryGain);
       } else {
         gainNode.connect(this.masterGain);
+      }
+
+      // Route through reverb send if requested
+      if (options.reverb && this._reverbWet) {
+        const reverbSend = this.context.createGain();
+        reverbSend.gain.value = typeof options.reverb === 'number' ? options.reverb : 0.3;
+        source.connect(reverbSend);
+        reverbSend.connect(this._reverbWet);
       }
 
       source.playbackRate.value = options.pitch ?? clip.pitch;
@@ -250,6 +269,20 @@ export class AudioManager {
   }
 
   // ── Procedural sound generators ─────────────────────
+
+  // Generate a stereo impulse response for convolution reverb.
+  _generateImpulse(seconds, decay) {
+    const sr = this.context.sampleRate;
+    const len = Math.floor(sr * seconds);
+    const buf = this.context.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+      }
+    }
+    return buf;
+  }
 
   // Envelope with 3ms attack and 15% release fade-out.
   _envelope(i, len, rate) {

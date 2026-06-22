@@ -101,6 +101,11 @@ export class BotController {
     this.walkPhase = 0;
     this.prevSpeed = 0;
 
+    this.pathfinder = null;
+    this._path = [];
+    this._pathIndex = 0;
+    this._pathTimer = 0;
+
     this._createVisual();
   }
 
@@ -369,6 +374,35 @@ export class BotController {
       this.patrolTarget = this.patrolPoints[0];
     }
 
+    // Follow path waypoints if available
+    if (this._path.length > 0 && this._pathIndex < this._path.length) {
+      const wp = this._path[this._pathIndex];
+      const dx = wp.x - this.position.x;
+      const dz = wp.z - this.position.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < 1) {
+        this._pathIndex++;
+        if (this._pathIndex >= this._path.length) {
+          this._path = [];
+          this._pathIndex = 0;
+        }
+        return;
+      }
+      const targetAngle = Math.atan2(dx, dz);
+      this.euler.y += this._angleDiff(this.euler.y, targetAngle) * 3 * deltaTime;
+      this.velocity.x = Math.sin(targetAngle) * this.config.patrolSpeed;
+      this.velocity.z = Math.cos(targetAngle) * this.config.patrolSpeed;
+      return;
+    }
+
+    // Recompute path if needed
+    this._pathTimer -= deltaTime;
+    if (this._path.length === 0 && this.pathfinder && this._pathTimer <= 0) {
+      this._pathTimer = 2;
+      this._path = this.pathfinder.findPath(this.position.x, this.position.z, this.patrolTarget.x, this.patrolTarget.z) || [];
+      this._pathIndex = 0;
+    }
+
     const dx = this.patrolTarget.x - this.position.x;
     const dz = this.patrolTarget.z - this.position.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
@@ -570,8 +604,11 @@ export class BotController {
         const nz = dz / dist;
         this.position.x += nx * overlap;
         this.position.z += nz * overlap;
-        this.velocity.x *= 0.5;
-        this.velocity.z *= 0.5;
+        const vDotN = this.velocity.x * nx + this.velocity.z * nz;
+        if (vDotN > 0) {
+          this.velocity.x -= vDotN * nx * 0.5;
+          this.velocity.z -= vDotN * nz * 0.5;
+        }
       }
     }
   }
