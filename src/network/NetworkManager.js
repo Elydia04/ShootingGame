@@ -187,7 +187,7 @@ export class NetworkManager {
     }
 
     this._interpolationBuffer.push(serverState);
-    while (this._interpolationBuffer.length > 120) {
+    while (this._interpolationBuffer.length > 60) {
       this._interpolationBuffer.shift();
     }
 

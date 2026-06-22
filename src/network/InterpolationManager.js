@@ -99,7 +99,7 @@ export class InterpolationManager {
   // Compute interpolated render positions for all entities.
   update(deltaTime) {
     const now = performance.now();
-    const interpDelay = 0.05;
+    const interpDelay = 0.1;
 
     for (const [id, entity] of this.trackedEntities) {
       if (!entity.renderPosition || entity.positions.length === 0) continue;

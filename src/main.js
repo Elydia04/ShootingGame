@@ -948,6 +948,10 @@ class Game {
       this._pendingInputs.splice(0, idx + 1);
     }
 
+    // Throttle visual reconciliation to ~5 Hz so blends finish between corrections
+    this._reconcileCounter = (this._reconcileCounter || 0) + 1;
+    if (this._reconcileCounter % 4 !== 0) return;
+
     const serverPos = new THREE.Vector3(
       state.position.x, state.position.y ?? 0.9, state.position.z
     );
